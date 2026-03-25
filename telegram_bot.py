@@ -117,36 +117,107 @@ def _format_digest(raw_summary: str) -> list[str]:
         if also_section
         else ""
     )
-    full_message = f"{rundown_section}{highlights_section}{also_section_formatted}"
 
-    # Split if too long — try to fit in as few messages as possible
-    if len(full_message) <= TELEGRAM_MAX_LENGTH:
-        return [full_message]
+    return _build_messages(header, rundown,
+                           highlights_section,
+                           also_section_formatted)
 
-    # Try 2 messages: rundown | highlights + also
-    msg1 = rundown_section
-    if len(msg1) > TELEGRAM_MAX_LENGTH:
-        sentences = rundown.split(". ")
-        truncated = ". ".join(sentences[:3]) + "."
-        msg1 = f"{header}{truncated}"
 
-    msg2_content = f"<b>Must-Know Highlights:</b>\n\n{highlights}{also_section_formatted}"
-    if len(msg2_content) <= TELEGRAM_MAX_LENGTH:
-        return [msg1, msg2_content]
+def _build_messages(header: str, rundown: str,
+                     formatted_highlights: str,
+                     formatted_also: str) -> list[str]:
+    """Build Telegram messages from structured parts, splitting at highlight
+    boundaries to never cut a highlight mid-sentence.
 
-    # 3 messages: rundown | highlights | also worth knowing
-    msg2 = f"<b>Must-Know Highlights:</b>\n\n{highlights}"
-    if len(msg2) > TELEGRAM_MAX_LENGTH:
-        msg2 = msg2[:TELEGRAM_MAX_LENGTH - 3] + "..."
+    Strategy:
+      - 1 msg  : everything fits
+      - 2 msgs : rundown in msg1, highlights+also in msg2
+      - 3+ msgs: rundown | highlights (overflow to msg3+) | also
+    """
+    MARGIN = 10   # safety buffer below hard limit
 
-    messages = [msg1, msg2]
-    if also_section:
-        msg3 = f"<b>Also Worth Knowing:</b>\n{also_section}"
-        if len(msg3) > TELEGRAM_MAX_LENGTH:
-            msg3 = msg3[:TELEGRAM_MAX_LENGTH - 3] + "..."
-        messages.append(msg3)
+    def make_msg(parts: list[str]) -> str:
+        """Join non-empty parts into a single message, strip trailing newlines."""
+        return "\n\n".join(p.strip() for p in parts if p.strip())
 
-    return messages
+    def truncate_sentence(text: str, limit: int) -> str:
+        """Truncate at last sentence boundary before limit. Falls back to char cut."""
+        if len(text) <= limit:
+            return text
+        # Find last '. ' before limit
+        cutoff = text.rfind(". ", 0, limit - 2)
+        if cutoff > limit * 0.4:   # only if we found a decent boundary
+            return text[:cutoff + 1]
+        return text[:limit - 3].rstrip() + "…"
+
+    # ── Try: 1 message ────────────────────────────────────────────────────────
+    one = make_msg([header + rundown,
+                    formatted_highlights,
+                    formatted_also])
+    if len(one) <= TELEGRAM_MAX_LENGTH:
+        return [one]
+
+    # ── Try: 2 messages (rundown | highlights + also) ───────────────────────
+    # Rundown is the hard part — truncate at sentence boundary if needed
+    msg1_raw = truncate_sentence(rundown, TELEGRAM_MAX_LENGTH - len(header) - 2)
+    msg1 = header + msg1_raw
+
+    # Try putting highlights + also in msg2
+    msg2 = make_msg([formatted_highlights, formatted_also])
+    if len(msg2) <= TELEGRAM_MAX_LENGTH:
+        return [msg1, msg2]
+
+    # msg2 still too big — highlights overflow. Split highlights across msgs.
+    # msg2 = formatted_highlights (as many as fit), msg3+ = overflow highlights
+    # msg2 may still be > 4096 if a SINGLE highlight is huge; handle below.
+    messages = [msg1]
+
+    # Split highlights into individual blocks (each highlight is 3 lines)
+    highlight_blocks = []
+    block = []
+    for line in formatted_highlights.split("\n"):
+        if line.strip() == "":
+            if block:
+                highlight_blocks.append("\n".join(block))
+                block = []
+        else:
+            block.append(line)
+    if block:
+        highlight_blocks.append("\n".join(block))
+
+    current_msg = ""
+    for block in highlight_blocks:
+        trial = (current_msg + "\n\n" + block).strip()
+        if len(trial) <= TELEGRAM_MAX_LENGTH - MARGIN:
+            current_msg = trial
+        else:
+            if current_msg:
+                messages.append(current_msg)
+            # If a single block is already > limit, truncate it
+            if len(block) > TELEGRAM_MAX_LENGTH - MARGIN:
+                current_msg = block[:TELEGRAM_MAX_LENGTH - MARGIN - 3].rstrip() + "…"
+            else:
+                current_msg = block
+    if current_msg.strip():
+        messages.append(current_msg)
+
+    # Append also-worth-knowing to the last message if there's room
+    if formatted_also:
+        last = messages[-1]
+        trial = (last + "\n\n" + formatted_also).strip()
+        if len(trial) <= TELEGRAM_MAX_LENGTH:
+            messages[-1] = trial
+        else:
+            # Also-worth-knowing is its own message
+            messages.append(formatted_also)
+
+    # Final safety: any message still over limit gets hard-truncated at char
+    def hard_truncate(text: str) -> str:
+        if len(text) <= TELEGRAM_MAX_LENGTH:
+            return text
+        return text[:TELEGRAM_MAX_LENGTH - 3].rstrip() + "…"
+
+    return [hard_truncate(m) for m in messages]
 
 
 def send_digest(raw_summary: str) -> bool:
