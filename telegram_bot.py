@@ -11,8 +11,13 @@ TELEGRAM_MAX_LENGTH = 4096
 
 
 def _escape(text: str) -> str:
-    """Escape text for Telegram HTML parse mode."""
-    return html.escape(text)
+    """Escape text for Telegram HTML parse mode.
+
+    The LLM may output HTML entities (&#8217;, &#8212;, etc.). Unescape
+    first so html.escape only escapes raw special chars, not the & of
+    existing entities (which would produce &amp;#8217; → literal text).
+    """
+    return html.escape(html.unescape(text))
 
 
 def _format_section_lines(raw: str) -> str:
@@ -30,6 +35,8 @@ def _format_section_lines(raw: str) -> str:
             url = source_match.group(2).strip()
             lines.append(f'Source: <a href="{url}">{name}</a>')
         elif re.match(r"^\d+\.\s", line):
+            if len(lines) > 0:
+                lines.append("")  # blank line before each highlight
             lines.append(f"<b>{_escape(line)}</b>")
         else:
             lines.append(_escape(line))
@@ -172,18 +179,12 @@ def _build_messages(header: str, rundown: str,
     # msg2 may still be > 4096 if a SINGLE highlight is huge; handle below.
     messages = [msg1]
 
-    # Split highlights into individual blocks (each highlight is 3 lines)
-    highlight_blocks = []
-    block = []
-    for line in formatted_highlights.split("\n"):
-        if line.strip() == "":
-            if block:
-                highlight_blocks.append("\n".join(block))
-                block = []
-        else:
-            block.append(line)
-    if block:
-        highlight_blocks.append("\n".join(block))
+    # Split highlights into individual blocks (each highlight is 3 lines).
+    # formatted_highlights starts with "\n\n" before the header, so we split on
+    # double newlines to get natural blocks, then strip each to remove the
+    # leading/trailing newlines that would otherwise accumulate.
+    raw_parts = formatted_highlights.split("\n\n")
+    highlight_blocks = [p.strip() for p in raw_parts if p.strip()]
 
     current_msg = ""
     for block in highlight_blocks:
