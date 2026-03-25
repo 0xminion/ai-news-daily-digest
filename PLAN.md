@@ -2,59 +2,61 @@
 
 ## Goal
 
-Build a Python program that runs via hermes-agent to extract and summarize the top 10 AI news stories from the past 24 hours, delivering a daily digest to Telegram users.
+Build a Python program that runs via hermes-agent to extract and summarize the top AI news stories from the past 24 hours, delivering a daily digest to Telegram users.
 
 ## Sources
 
-Reputable news outlets:
+Reputable news outlets (via RSS):
 - Wired
-- The Economist
-- Reuters
 - TechCrunch
 - The Verge
 - Ars Technica
 - MIT Technology Review
-- Bloomberg Technology
+- Reuters
+- VentureBeat (fallback)
 
 ## Output Format (Telegram Message)
 
-1. **Brief Rundown** — A paragraph summarizing the overall AI landscape for the day: what's happening, key trends, major takeaways. Not too brief, not too detailed — the sweet spot for a busy reader who wants to stay informed.
-
-2. **5 Must-Know Highlights** — Dot-format list of the most important stories, each with:
-   - A concise but substantive summary (2-3 sentences)
-   - Source attribution with clickable link for further reading
+1. **Brief Rundown** — A paragraph summarizing the overall AI landscape for the day
+2. **5 Must-Know Highlights** — Numbered list with summaries and clickable source links
 
 ## Architecture
 
-- **News Fetching**: Use NewsAPI or RSS feeds to pull AI-related articles from target sources within the last 24 hours
-- **Summarization**: Use an LLM (Claude API) to generate the rundown and highlights from the collected articles
-- **Delivery**: Send formatted message to Telegram users via Telegram Bot API
-- **Orchestration**: hermes-agent runs the program on a schedule (daily)
+- **News Fetching**: RSS feeds via feedparser, keyword-filtered for AI relevance
+- **Summarization**: Ollama (local LLM, default llama3.1:8b) — designed for model swappability
+- **Delivery**: Telegram Bot API with HTML formatting
+- **Orchestration**: hermes-agent runs `python main.py` on a daily schedule
 
 ## Tech Stack
 
 - Python 3.11+
 - hermes-agent (orchestration)
-- NewsAPI / RSS parsing (feedparser)
-- Claude API (summarization)
+- feedparser (RSS parsing)
+- Ollama (local LLM summarization)
 - python-telegram-bot (delivery)
+- rapidfuzz (deduplication)
 
 ## File Structure
 
 ```
 projectclaude/
 ├── main.py              # Entry point — orchestrates fetch → summarize → deliver
-├── fetcher.py           # News fetching from APIs/RSS
-├── summarizer.py        # LLM-powered summarization
-├── telegram_bot.py      # Telegram message formatting and delivery
-├── config.py            # Configuration (API keys, source list, Telegram chat IDs)
+├── fetcher.py           # RSS fetching + keyword filtering + deduplication
+├── summarizer.py        # Ollama API calls, prompt template, model swappability
+├── telegram_bot.py      # HTML message formatting + sending + splitting
+├── config.py            # Configuration (env vars, source list, keywords)
 ├── requirements.txt     # Dependencies
-└── .env                 # API keys (gitignored)
+├── .env.example         # Template for required env vars
+├── .gitignore           # .env, __pycache__, etc.
+├── test_fetcher.py      # Unit tests for fetcher
+├── test_summarizer.py   # Unit tests for summarizer
+├── test_telegram_bot.py # Unit tests for Telegram bot
+└── test_config.py       # Unit tests for config
 ```
 
 ## Configuration
 
-- `NEWS_API_KEY` — NewsAPI key for article fetching
-- `ANTHROPIC_API_KEY` — Claude API key for summarization
-- `TELEGRAM_BOT_TOKEN` — Telegram bot token
+- `OLLAMA_MODEL` — Local model name (default: llama3.1:8b)
+- `OLLAMA_HOST` — Ollama API host (default: http://localhost:11434)
+- `TELEGRAM_BOT_TOKEN` — Telegram bot token from @BotFather
 - `TELEGRAM_CHAT_ID` — Target chat/user ID for delivery
