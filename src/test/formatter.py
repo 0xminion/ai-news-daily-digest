@@ -61,6 +61,16 @@ def _generate_rundown(articles: list[dict]) -> str:
             topics.append("AI startup funding")
         elif "robotics" in title_lower or "autonomous" in title_lower:
             topics.append("Robotics and autonomous systems")
+        elif "safety" in title_lower or "regulation" in title_lower or "government" in title_lower or "eu " in title_lower or " congress" in title_lower or "law" in title_lower:
+            topics.append("AI policy and safety")
+        elif "startup" in title_lower or "funding" in title_lower or "raises" in title_lower or "series" in title_lower:
+            topics.append("AI startup funding")
+        elif "model" in title_lower or "gpt" in title_lower or "llm" in title_lower or "multimodal" in title_lower:
+            topics.append("New AI models and capabilities")
+        elif "chip" in title_lower or "gpu" in title_lower or "hardware" in title_lower or "nvidia" in title_lower:
+            topics.append("AI hardware and chips")
+        elif "robot" in title_lower or "drone" in title_lower:
+            topics.append("Robotics")
 
     unique_topics = list(dict.fromkeys(topics))[:3]
     topic_str = ", ".join(unique_topics) if unique_topics else "major AI developments"

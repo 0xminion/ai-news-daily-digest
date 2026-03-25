@@ -14,11 +14,28 @@ AI_KEYWORDS = [
     "large language model", " diffusion model", " AI model", "robotics",
 ]
 
+BLOCKLIST = [
+    "deal", "sale", "coupon", "discount", "earnings", "revenue share",
+    "stock", "crypto", "bitcoin", "ipo", "acquisition", "merger",
+    "layoffs", "lawsuit", "scandal", "rumor",
+]
 
 def is_ai_related(title: str, summary: str) -> bool:
-    """Check if article is AI-related using keyword matching."""
-    content = f"{title} {summary}".lower()
-    return any(kw in content for kw in AI_KEYWORDS)
+    """Require AI keyword in title, or in BOTH title AND summary (not summary alone)."""
+    title_lower = title.lower()
+    summary_lower = summary.lower()
+    # Must have AI keyword in title
+    if any(kw in title_lower for kw in AI_KEYWORDS):
+        # And not be a blocked topic
+        if not any(bad in title_lower for bad in BLOCKLIST):
+            return True
+    # Allow if AI keyword in both title AND summary
+    ai_in_title = any(kw in title_lower for kw in AI_KEYWORDS)
+    ai_in_summary = any(kw in summary_lower for kw in AI_KEYWORDS)
+    if ai_in_title and ai_in_summary:
+        if not any(bad in title_lower for bad in BLOCKLIST):
+            return True
+    return False
 
 
 def fetch_feed(source: dict) -> list[dict]:
