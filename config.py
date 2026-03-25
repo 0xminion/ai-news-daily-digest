@@ -55,7 +55,7 @@ AI_KEYWORDS = [
 ]
 
 MAX_ARTICLES_TO_SUMMARIZE = 20
-RSS_WINDOW_HOURS = 27  # 24h + 3h buffer for timezone edge cases
+RSS_WINDOW_HOURS = 24  # strictly past 24 hours only; no buffer — older articles are excluded rather than window extended
 USER_AGENT = "AI-News-Digest/1.0 (RSS Reader)"
 
 

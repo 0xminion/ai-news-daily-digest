@@ -28,11 +28,13 @@ def get_publish_date(entry) -> Optional[datetime]:
 
 
 def is_within_window(entry, hours: int = RSS_WINDOW_HOURS) -> bool:
-    """Check if an entry was published within the last N hours."""
+    """Check if an entry was published within the last N hours.
+    Returns False for entries with no parseable date — strict 24h window only.
+    """
     pub_date = get_publish_date(entry)
     if pub_date is None:
-        # If no date, include it (better to include than miss)
-        return True
+        # No date available — exclude rather than include (strict window)
+        return False
     now = datetime.now(timezone.utc)
     delta = now - pub_date
     return delta.total_seconds() <= hours * 3600
