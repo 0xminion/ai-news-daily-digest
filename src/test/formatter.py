@@ -45,32 +45,38 @@ def _generate_rundown(articles: list[dict]) -> str:
     source_list = ", ".join(unique_sources[:5])
 
     topics = []
-    for a in articles[:5]:
+    for a in articles[:7]:  # scan top 7 for broader coverage
         title_lower = a["title"].lower()
-        if "openai" in title_lower or "chatgpt" in title_lower:
+        # Priority order matters — most specific first
+        if any(x in title_lower for x in ["openai", "chatgpt", "gpt-4", "gpt-5", "o1", "o3"]):
             topics.append("OpenAI and GPT models")
-        elif "google" in title_lower or "gemini" in title_lower:
-            topics.append("Google AI developments")
-        elif "anthropic" in title_lower or "claude" in title_lower:
+        elif any(x in title_lower for x in ["google ai", "google deepmind", "deepmind", "gemini", "waymo"]):
+            topics.append("Google AI")
+        elif any(x in title_lower for x in ["anthropic", "claude"]):
             topics.append("Anthropic and Claude")
-        elif "regulation" in title_lower or "government" in title_lower or "eu" in title_lower:
-            topics.append("AI policy and regulation")
-        elif "research" in title_lower or "study" in title_lower:
-            topics.append("AI research breakthroughs")
-        elif "startup" in title_lower or "funding" in title_lower:
-            topics.append("AI startup funding")
-        elif "robotics" in title_lower or "autonomous" in title_lower:
-            topics.append("Robotics and autonomous systems")
-        elif "safety" in title_lower or "regulation" in title_lower or "government" in title_lower or "eu " in title_lower or " congress" in title_lower or "law" in title_lower:
+        elif any(x in title_lower for x in ["meta ai", "meta's", "llama", " Facebook ai"]):
+            topics.append("Meta AI")
+        elif any(x in title_lower for x in ["microsoft ai", "copilot", "azure ai", "bing ai"]):
+            topics.append("Microsoft AI")
+        elif any(x in title_lower for x in ["ai safety", "ai policy", "ai regulation", "ai law", "ai act", "ai safety bill", "government ai", "congress ai", "eu ai"]):
             topics.append("AI policy and safety")
-        elif "startup" in title_lower or "funding" in title_lower or "raises" in title_lower or "series" in title_lower:
-            topics.append("AI startup funding")
-        elif "model" in title_lower or "gpt" in title_lower or "llm" in title_lower or "multimodal" in title_lower:
-            topics.append("New AI models and capabilities")
-        elif "chip" in title_lower or "gpu" in title_lower or "hardware" in title_lower or "nvidia" in title_lower:
-            topics.append("AI hardware and chips")
-        elif "robot" in title_lower or "drone" in title_lower:
-            topics.append("Robotics")
+        elif any(x in title_lower for x in ["ai research", "ai study", "breakthrough", "discovery", "paper", "university ai"]):
+            topics.append("AI research")
+        elif any(x in title_lower for x in ["robotics", "autonomous", "humanoid", "robot", "drone"]):
+            topics.append("Robotics and autonomy")
+        elif any(x in title_lower for x in ["ai chip", "gpu", "nvidia", "tpu", "hardware", "neuromorphic"]):
+            topics.append("AI hardware")
+        elif any(x in title_lower for x in ["stable diffusion", "midjourney", "dall-e", "image generation", "video generation", "sora", "video ai"]):
+            topics.append("Generative media")
+        elif any(x in title_lower for x in ["model", "llm", "multimodal", "reasoning", "benchmark"]) and \
+             any(x in title_lower for x in ["new", "launch", "release", "announce", "unveils"]):
+            topics.append("New AI models")
+        elif any(x in title_lower for x in ["startup", "raises", "secures", "funding", "series a", "series b", "a16z", "vc"]):
+            topics.append("AI startups and funding")
+        elif any(x in title_lower for x in ["agent", "agentic", "agent ai", "autonomous ai"]):
+            topics.append("AI agents")
+        elif any(x in title_lower for x in ["ai ethics", "bias", "fairness", "transparency", "explainability"]):
+            topics.append("AI ethics and governance")
 
     unique_topics = list(dict.fromkeys(topics))[:3]
     topic_str = ", ".join(unique_topics) if unique_topics else "major AI developments"
