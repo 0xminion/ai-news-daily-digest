@@ -33,6 +33,8 @@ def _format_section_lines(raw: str) -> str:
         if source_match:
             name = _escape(source_match.group(1).strip())
             url = source_match.group(2).strip()
+            if url.startswith("http://"):
+                logger.warning("Non-HTTPS URL in digest source: %s", url)
             lines.append(f'Source: <a href="{url}">{name}</a>')
         elif re.match(r"^\d+\.\s", line):
             if len(lines) > 0:
@@ -258,9 +260,7 @@ def _send_message(text: str, retry: bool = True) -> bool:
             )
             return False
 
-        logger.warning(
-            f"Telegram API error {response.status_code}: {response.text}"
-        )
+        logger.warning("Telegram API error %s", response.status_code)
 
         if retry:
             logger.info("Retrying Telegram send...")
@@ -269,7 +269,7 @@ def _send_message(text: str, retry: bool = True) -> bool:
         return False
 
     except requests.RequestException as e:
-        logger.error(f"Telegram request failed: {e}")
+        logger.error("Telegram request failed: %s", e)
         if retry:
             logger.info("Retrying Telegram send...")
             return _send_message(text, retry=False)

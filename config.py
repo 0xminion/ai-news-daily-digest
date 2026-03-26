@@ -60,7 +60,7 @@ USER_AGENT = "AI-News-Digest/1.0 (RSS Reader)"
 
 
 def validate_config():
-    """Validate that all required config values are set."""
+    """Validate that all required config values are set and sane."""
     missing = []
     if not TELEGRAM_BOT_TOKEN:
         missing.append("TELEGRAM_BOT_TOKEN")
@@ -71,3 +71,17 @@ def validate_config():
             f"Missing required environment variables: {', '.join(missing)}. "
             f"Copy .env.example to .env and fill in the values."
         )
+
+    # Warn on feeds that fail basic URL validation
+    from urllib.parse import urlparse
+    for name, url in RSS_FEEDS:
+        try:
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                logger.warning(
+                    "RSS feed '%s' has invalid URL '%s' — skipping at startup. "
+                    "Fix the URL in RSS_FEEDS (config.py).",
+                    name, url,
+                )
+        except Exception as e:
+            logger.warning("RSS feed '%s' raised %s: %s — skipping at startup.", name, type(e).__name__, e)

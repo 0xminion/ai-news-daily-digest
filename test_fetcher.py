@@ -56,12 +56,13 @@ class TestIsWithinWindow:
         entry.created_parsed = None
         assert is_within_window(entry) is False
 
-    def test_no_date_included(self):
+    def test_no_date_excluded(self):
+        """Entries with no parseable date are excluded — strict window policy."""
         entry = MagicMock()
         entry.published_parsed = None
         entry.updated_parsed = None
         entry.created_parsed = None
-        assert is_within_window(entry) is True
+        assert is_within_window(entry) is False
 
 
 class TestMatchesAiKeywords:

@@ -19,8 +19,9 @@ class TestValidateConfig:
         importlib.reload(config)
         config.validate_config()
 
+    @patch("dotenv.load_dotenv")
     @patch.dict(os.environ, {}, clear=True)
-    def test_missing_required_vars(self):
+    def test_missing_required_vars(self, mock_load_dotenv):
         import importlib
         import config
         importlib.reload(config)

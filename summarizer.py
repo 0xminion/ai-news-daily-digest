@@ -1,8 +1,29 @@
 import json
+import re
 
 import requests
 
 from config import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, logger
+
+# Patterns indicative of prompt injection attempts in article content
+_INJECTION_PATTERNS = re.compile(
+    r"ignore\s+(all\s+)?(previous|prior)\s+instructions"
+    r"|disregard\s+(all\s+)?(previous|prior)\s+instructions"
+    r"|forget\s+(all\s+)?(previous|prior)\s+instructions"
+    r"|new\s+instruction(s)?:"
+    r"|system\s*prompt\s*leak",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_for_prompt(text: str) -> str:
+    """Remove potential prompt injection patterns from article text.
+
+    Articles come from untrusted RSS sources. While JSON serialization
+    prevents structural injection, we strip common injection phrases
+    to reduce risk of the LLM being manipulated.
+    """
+    return _INJECTION_PATTERNS.sub("[redacted]", text)
 
 
 PROMPT_TEMPLATE = """You are an AI news curator. Given the following {n} articles about artificial intelligence, produce a daily digest with two sections:
@@ -58,8 +79,8 @@ def summarize(articles: list[dict]) -> str:
     articles_json = json.dumps(
         [
             {
-                "title": a["title"],
-                "summary": a["summary"][:500],
+                "title": _sanitize_for_prompt(a["title"]),
+                "summary": _sanitize_for_prompt(a["summary"])[:500],
                 "url": a["url"],
                 "source": a["source"],
             }

@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from typing import Optional
 
 import feedparser
@@ -13,6 +14,18 @@ from config import (
     USER_AGENT,
     logger,
 )
+
+# SSRF protection: block requests to metadata/internal endpoints
+_SSRF_BLOCKED_HOSTS = frozenset({
+    "169.254.169.254",       # AWS, Azure, GCP metadata
+    "metadata.google.internal",  # GCP
+    "metadata.azure.com",        # Azure
+    "metadata.internal",          # Generic
+    "kubernetes.default",        # K8s service catalog
+    "consul.service.consul",     # Consul
+})
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
+_MAX_ENTRIES_PER_FEED = 100
 
 
 def get_publish_date(entry) -> Optional[datetime]:
@@ -80,6 +93,11 @@ def fetch_articles() -> list[dict]:
 
     for source_name, feed_url in RSS_FEEDS:
         try:
+            # SSRF validation
+            parsed = urlparse(feed_url)
+            if parsed.scheme not in _ALLOWED_SCHEMES or parsed.hostname in _SSRF_BLOCKED_HOSTS:
+                logger.warning("Blocked SSRF attempt from config (%s): %s", source_name, feed_url)
+                continue
             logger.info(f"Fetching from {source_name}...")
             feed = feedparser.parse(
                 feed_url,
@@ -91,7 +109,7 @@ def fetch_articles() -> list[dict]:
                 logger.warning(f"No entries from {source_name}")
                 continue
 
-            for entry in feed.entries:
+            for entry in feed.entries[:_MAX_ENTRIES_PER_FEED]:
                 if not is_within_window(entry):
                     continue
 

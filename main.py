@@ -26,6 +26,27 @@ def main() -> int:
         logger.error(str(e))
         return 1
 
+    # Check Ollama reachability (non-fatal, just warn)
+    try:
+        import requests
+        from config import OLLAMA_HOST, USER_AGENT
+        resp = requests.get(
+            f"{OLLAMA_HOST}/api/tags",
+            timeout=5,
+            headers={"User-Agent": USER_AGENT},
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "Ollama at %s returned status %s — summarization may fail.",
+                OLLAMA_HOST, resp.status_code,
+            )
+    except Exception as e:
+        logger.warning(
+            "Cannot reach Ollama at %s (%s) — summarization will fail. "
+            "Start Ollama: ollama serve",
+            OLLAMA_HOST, e,
+        )
+
     # Fetch articles
     try:
         articles = fetch_articles()
