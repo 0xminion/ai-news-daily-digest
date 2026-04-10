@@ -29,20 +29,27 @@ def _escape(text: str) -> str:
 
 def _normalize_heading_variants(text: str) -> str:
     normalized = text
-    replacements = {
-        'BRIEF RUNDOWN:': SECTION_MARKERS['brief_rundown'],
-        'TREND WATCH:': SECTION_MARKERS['trend_watch'],
-        'MAIN NEWS TREND WATCH:': SECTION_MARKERS['main_news_trend_watch'],
-        'HEATING UP:': SECTION_MARKERS['heating_up'],
-        'COOLING DOWN:': SECTION_MARKERS['cooling_down'],
-        'HIGHLIGHTS:': SECTION_MARKERS['highlights'],
-        'ALSO WORTH KNOWING:': SECTION_MARKERS['also_worth_knowing'],
-        'RESEARCH / BUILDER SIGNALS:': SECTION_MARKERS['research_builder_signals'],
-        'WEEKLY PREVIEW:': SECTION_MARKERS['weekly_preview'],
+    pattern_map = {
+        r'^\s*brief\s+rundown:\s*$': SECTION_MARKERS['brief_rundown'],
+        r'^\s*trend\s+watch:\s*$': SECTION_MARKERS['trend_watch'],
+        r'^\s*main\s+news\s+trend\s+watch:\s*$': SECTION_MARKERS['main_news_trend_watch'],
+        r'^\s*heating\s+up:\s*$': SECTION_MARKERS['heating_up'],
+        r'^\s*cooling\s+down:\s*$': SECTION_MARKERS['cooling_down'],
+        r'^\s*highlights:\s*$': SECTION_MARKERS['highlights'],
+        r'^\s*also\s+worth\s+knowing:\s*$': SECTION_MARKERS['also_worth_knowing'],
+        r'^\s*research\s*/\s*builder\s+signals:\s*$': SECTION_MARKERS['research_builder_signals'],
+        r'^\s*weekly\s+preview:\s*$': SECTION_MARKERS['weekly_preview'],
     }
-    for old, new in replacements.items():
-        normalized = normalized.replace(old, new)
-    return normalized
+    lines = []
+    for line in normalized.split('\n'):
+        stripped = line.strip()
+        replaced = stripped
+        for pattern, canonical in pattern_map.items():
+            if re.match(pattern, stripped, flags=re.IGNORECASE):
+                replaced = canonical
+                break
+        lines.append(replaced if stripped else line)
+    return '\n'.join(lines)
 
 
 def _parse_summary_sections(raw_summary: str) -> dict:
@@ -157,6 +164,18 @@ def _bullet_match(line: str):
     return None
 
 
+def _split_inline_source(line: str) -> tuple[str, tuple[str, str] | None]:
+    patterns = [
+        r'^(?P<body>.+?)\s+Source:\s*(?P<name>.+?)\s*\((?P<url>https?://\S+?)\)\s*$',
+        r'^(?P<body>.+?)\s+Source:\s*(?P<name>.+?)\s*-\s*(?P<url>https?://\S+)\s*$',
+    ]
+    for pattern in patterns:
+        match = re.match(pattern, line)
+        if match:
+            return match.group('body').strip(), (match.group('name').strip(), match.group('url').strip())
+    return line, None
+
+
 def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str:
     lines = []
     for line in raw.split('\n'):
@@ -175,7 +194,12 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
         elif not include_signal_annotations and ('Hacker News' in line or 'points' in line):
             continue
         else:
-            lines.append(_escape(line))
+            body, inline_source = _split_inline_source(line)
+            if body:
+                lines.append(_escape(body))
+            if inline_source:
+                name, url = inline_source
+                lines.append(f'Source: <a href="{url}">{_escape(name)}</a>')
     return '\n'.join(lines)
 
 
