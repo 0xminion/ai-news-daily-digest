@@ -64,11 +64,13 @@ def _serialize_articles(articles: list[dict]) -> str:
 def _build_prompt(main_articles: list[dict], research_articles: list[dict], trend_snapshot: dict | None = None, weekly_preview: str = '') -> str:
     trend_context = format_trend_context(trend_snapshot or {}) or 'No strong cross-day topic shifts detected.'
     template = _load_prompt_template('daily')
-    return template.format(
-        main_articles_json=_serialize_articles(main_articles),
-        research_articles_json=_serialize_articles(research_articles),
-        trend_context=trend_context,
-        weekly_preview=weekly_preview or 'No weekly preview available.',
+    # Use replace() instead of format() to avoid KeyError when article content contains { or }
+    return (
+        template
+        .replace('{main_articles_json}', _serialize_articles(main_articles))
+        .replace('{research_articles_json}', _serialize_articles(research_articles))
+        .replace('{trend_context}', trend_context)
+        .replace('{weekly_preview}', weekly_preview or 'No weekly preview available.')
     )
 
 
