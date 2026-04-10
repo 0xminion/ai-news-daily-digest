@@ -8,7 +8,10 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-from .catalog import HN_SIGNAL_QUERIES, AI_KEYWORDS, PAGE_SOURCES, RSS_FEEDS, ORTHOGONAL_RSS_FEEDS, SOURCE_TRUST_WEIGHTS, TREND_TOPICS
+from .feeds import RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS
+from .topics import HN_SIGNAL_QUERIES
+from .trust import SOURCE_TRUST_WEIGHTS
+from .topics import TREND_TOPICS
 
 load_dotenv()
 

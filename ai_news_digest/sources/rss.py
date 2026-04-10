@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import feedparser
 
-from ai_news_digest.config import AI_KEYWORDS, RSS_FEEDS, RSS_WINDOW_HOURS, USER_AGENT, logger
+from ai_news_digest.config import RSS_FEEDS, RSS_WINDOW_HOURS, USER_AGENT, logger
+from ai_news_digest.config.keywords import matches_ai_keywords
+from ai_news_digest.utils.retry import with_retry
 from .common import parse_entry_date, within_hours
 
 
-def matches_ai_keywords(text: str) -> bool:
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in AI_KEYWORDS)
+@with_retry(max_attempts=2, delay=2.0, backoff=2.0)
+def _fetch_feed(feed_url: str, user_agent: str) -> feedparser.FeedParserDict:
+    """Fetch and parse an RSS feed with retry."""
+    return feedparser.parse(feed_url, agent=user_agent, request_headers={'User-Agent': user_agent})
 
 
 def fetch_rss_articles(feeds=None) -> list[dict]:
@@ -17,7 +20,7 @@ def fetch_rss_articles(feeds=None) -> list[dict]:
     for source_name, feed_url in feeds:
         try:
             logger.info('Fetching from %s...', source_name)
-            feed = feedparser.parse(feed_url, agent=USER_AGENT, request_headers={'User-Agent': USER_AGENT})
+            feed = _fetch_feed(feed_url, USER_AGENT)
             if not hasattr(feed, 'entries') or not feed.entries:
                 logger.warning('No entries from %s', source_name)
                 continue

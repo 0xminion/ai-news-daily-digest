@@ -8,8 +8,22 @@ from rapidfuzz import fuzz
 
 from ai_news_digest.config import HN_ENABLED, HN_MAX_STORIES, HN_MIN_COMMENTS, HN_MIN_POINTS, HN_SIGNAL_QUERIES, HN_SIGNAL_WINDOW_HOURS, USER_AGENT, logger
 from ai_news_digest.storage.archive import normalize_title, normalize_url
+from ai_news_digest.utils.retry import with_retry
 
 HN_API = 'https://hn.algolia.com/api/v1/search_by_date'
+
+
+@with_retry(max_attempts=2, delay=3.0, backoff=2.0)
+def _hn_search(query: str, cutoff: int) -> list[dict]:
+    """Search HN Algolia API with retry."""
+    r = requests.get(
+        HN_API,
+        params={'query': query, 'tags': 'story', 'hitsPerPage': 30, 'numericFilters': f'created_at_i>{cutoff}'},
+        timeout=30,
+        headers={'User-Agent': USER_AGENT},
+    )
+    r.raise_for_status()
+    return r.json().get('hits', [])
 
 
 def fetch_hn_signals() -> list[dict]:
@@ -19,13 +33,14 @@ def fetch_hn_signals() -> list[dict]:
     cutoff = int((datetime.now(timezone.utc) - timedelta(hours=HN_SIGNAL_WINDOW_HOURS)).timestamp())
     for query in HN_SIGNAL_QUERIES:
         try:
-            r = requests.get(HN_API, params={'query': query, 'tags': 'story', 'hitsPerPage': 30, 'numericFilters': f'created_at_i>{cutoff}'}, timeout=30, headers={'User-Agent': USER_AGENT})
-            r.raise_for_status(); hits = r.json().get('hits', [])
+            hits = _hn_search(query, cutoff)
         except Exception as exc:
-            logger.info('Hacker News lookup failed for query %s: %s', query, exc); continue
+            logger.info('Hacker News lookup failed for query %s: %s', query, exc)
+            continue
         for hit in hits:
             title = (hit.get('title') or hit.get('story_title') or '').strip()
-            points = int(hit.get('points') or 0); comments = int(hit.get('num_comments') or 0)
+            points = int(hit.get('points') or 0)
+            comments = int(hit.get('num_comments') or 0)
             if not title or (points < HN_MIN_POINTS and comments < HN_MIN_COMMENTS):
                 continue
             discussion_url = f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
@@ -36,7 +51,14 @@ def fetch_hn_signals() -> list[dict]:
             if not key or key in seen:
                 continue
             seen.add(key)
-            collected.append({'title': title[:300], 'url': target_url, 'hn_points': points, 'hn_comments': comments, 'hn_discussion_url': discussion_url, 'published': hit.get('created_at') or 'Unknown'})
+            collected.append({
+                'title': title[:300],
+                'url': target_url,
+                'hn_points': points,
+                'hn_comments': comments,
+                'hn_discussion_url': discussion_url,
+                'published': hit.get('created_at') or 'Unknown',
+            })
     collected.sort(key=lambda item: (item.get('hn_points', 0), item.get('hn_comments', 0)), reverse=True)
     return collected[:HN_MAX_STORIES]
 
