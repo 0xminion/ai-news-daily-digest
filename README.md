@@ -68,6 +68,9 @@ chmod 600 .env
 # Full run — fetches, clusters, ranks, summarizes, sends to Telegram
 python main.py
 
+# Fixture-backed format review (stable samples, no live fetch randomness)
+python review_samples.py
+
 # Weekly sample render from archived daily payloads
 python - <<'PY'
 from ai_news_digest.app import build_weekly_sample
@@ -107,7 +110,8 @@ All config via environment variables (`.env` file):
 | `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with optional per-destination bot tokens |
 | `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Legacy Ollama model fallback |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
-| `RETENTION_DAYS` | No | `30` | Local daily report retention window |
+| `RETENTION_DAYS` | No | `30` | Local daily/weekly report retention window |
+| `RESEARCH_SIGNALS_COUNT` | No | `5` | Max items in Research / Builder Signals by default |
 | `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
 | `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |
 | `HN_ENABLED` | No | `true` | Enable Hacker News signal enrichment |

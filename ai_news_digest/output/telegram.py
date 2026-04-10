@@ -70,10 +70,30 @@ def _limit_numbered(raw: str, limit: int) -> str:
     return '\n\n'.join(entry for entry in entries[:limit] if entry)
 
 
+def _split_bullet_blocks(raw: str) -> list[str]:
+    blocks = []
+    current = []
+    for line in raw.split('\n'):
+        stripped = line.rstrip()
+        if not stripped.strip():
+            if current:
+                current.append('')
+            continue
+        if stripped.lstrip().startswith('- '):
+            if current:
+                blocks.append('\n'.join(current).strip())
+            current = [stripped.strip()]
+        elif current:
+            current.append(stripped)
+    if current:
+        blocks.append('\n'.join(current).strip())
+    return blocks
+
+
 def _limit_bullets(raw: str, limit: int) -> str:
     if limit <= 0 or not raw:
         return ''
-    return '\n'.join([line for line in raw.split('\n') if line.strip()][:limit])
+    return '\n\n'.join(_split_bullet_blocks(raw)[:limit])
 
 
 def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str:
@@ -99,20 +119,24 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
 
 
 def _format_bullets(raw: str) -> str:
-    lines = []
-    for line in raw.split('\n'):
-        s = line.strip().lstrip('- ')
-        if not s:
+    formatted_blocks = []
+    for block in _split_bullet_blocks(raw):
+        lines = [line.rstrip() for line in block.split('\n') if line.strip()]
+        if not lines:
             continue
-        pipe = re.match(r'^(.+?)\s*\|\s*(.+?)\s*-\s*(https?://\S+)$', s)
+        first = lines[0].strip().lstrip('- ')
+        pipe = re.match(r'^(.+?)\s*\|\s*(.+?)\s*-\s*(https?://\S+)$', first)
         if pipe:
             title = _escape(pipe.group(1).strip())
             source = _escape(pipe.group(2).strip())
             url = pipe.group(3).strip()
-            lines.append(f'• <a href="{url}">{title}</a> ({source})')
+            rendered = [f'• <a href="{url}">{title}</a> ({source})']
         else:
-            lines.append(f'• {_escape(s)}')
-    return '\n'.join(lines)
+            rendered = [f'• {_escape(first)}']
+        for extra in lines[1:]:
+            rendered.append(f'  {_escape(extra.strip())}')
+        formatted_blocks.append('\n'.join(rendered))
+    return '\n\n'.join(formatted_blocks)
 
 
 def _format_trend_watch(raw: str) -> str:
@@ -142,7 +166,7 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
     trend_watch = _format_trend_watch(sections['trend']) if profile.get('show_trend_watch', True) and sections['trend'] else ''
     highlights = _format_highlights(_limit_numbered(sections['highlights'], profile.get('max_highlights', 10)), include_signal_annotations=profile.get('include_signal_annotations', True)) if sections['highlights'] else ''
     also = _format_bullets(_limit_bullets(sections['also'], profile.get('max_also', 10))) if profile.get('show_also_worth_knowing', True) and sections['also'] else ''
-    research = _format_bullets(_limit_bullets(sections['research'], 6)) if sections['research'] else ''
+    research = _format_bullets(_limit_bullets(sections['research'], profile.get('max_research', 5))) if sections['research'] else ''
     weekly_preview = _format_bullets(_limit_bullets(sections['weekly_preview'], 6)) if sections['weekly_preview'] else ''
 
     parts = [header + rundown]

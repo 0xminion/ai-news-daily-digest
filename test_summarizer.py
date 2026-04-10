@@ -36,6 +36,8 @@ class TestSummarize:
         assert isinstance(result, str)
         payload = mock_post.call_args.kwargs['json']
         assert 'Trend context:' in payload['prompt']
+        assert 'ELI5' in payload['prompt']
+        assert '[paper]' in payload['prompt']
 
     @patch('ai_news_digest.llm.service.get_llm_settings', return_value=OLLAMA_SETTINGS)
     @patch('ai_news_digest.llm.service.requests.post')

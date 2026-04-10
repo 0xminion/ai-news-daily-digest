@@ -52,6 +52,8 @@ WEEKLY_HIGHLIGHTS_COUNT = int(os.getenv("WEEKLY_HIGHLIGHTS_COUNT", "7"))
 WEEKLY_DIRECTIONS_COUNT = int(os.getenv("WEEKLY_DIRECTIONS_COUNT", "4"))
 WEEKLY_FOCUS_COUNT = int(os.getenv("WEEKLY_FOCUS_COUNT", "2"))
 WEEKLY_QUESTIONS_COUNT = int(os.getenv("WEEKLY_QUESTIONS_COUNT", "6"))
+WEEKLY_RESEARCH_SIGNALS_COUNT = int(os.getenv("WEEKLY_RESEARCH_SIGNALS_COUNT", "5"))
+WEEKLY_EMERGING_COUNT = int(os.getenv("WEEKLY_EMERGING_COUNT", "3"))
 
 FOLLOW_BUILDERS_ENABLED = os.getenv("FOLLOW_BUILDERS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 FOLLOW_BUILDERS_FEEDS_JSON = os.getenv("FOLLOW_BUILDERS_FEEDS_JSON", "")
@@ -67,6 +69,8 @@ logging.basicConfig(
 logger = logging.getLogger("ai-digest")
 
 MAX_ARTICLES_TO_SUMMARIZE = 20
+RESEARCH_SIGNALS_COUNT = int(os.getenv("RESEARCH_SIGNALS_COUNT", "5"))
+RESEARCH_TOPIC_CAP_PER_TOPIC = int(os.getenv("RESEARCH_TOPIC_CAP_PER_TOPIC", "1"))
 RSS_WINDOW_HOURS = 24
 USER_AGENT = os.getenv("USER_AGENT", "Mozilla/5.0 (compatible; AI-News-Digest/2.0; +https://github.com/0xminion/ai-news-daily-digest)")
 CONTENT_FETCH_TIMEOUT = int(os.getenv("CONTENT_FETCH_TIMEOUT", "30"))
@@ -106,6 +110,7 @@ def get_destination_profiles() -> dict:
             "show_also_worth_knowing": True,
             "max_highlights": 10,
             "max_also": 10,
+            "max_research": RESEARCH_SIGNALS_COUNT,
             "include_signal_annotations": True,
             "headline_prefix": "",
         },
@@ -114,6 +119,7 @@ def get_destination_profiles() -> dict:
             "show_also_worth_knowing": False,
             "max_highlights": 5,
             "max_also": 0,
+            "max_research": min(RESEARCH_SIGNALS_COUNT, 3),
             "include_signal_annotations": False,
             "headline_prefix": "⚡ ",
         },
@@ -122,6 +128,7 @@ def get_destination_profiles() -> dict:
             "show_also_worth_knowing": True,
             "max_highlights": 12,
             "max_also": 12,
+            "max_research": max(RESEARCH_SIGNALS_COUNT, 5),
             "include_signal_annotations": True,
             "headline_prefix": "🔬 ",
         },

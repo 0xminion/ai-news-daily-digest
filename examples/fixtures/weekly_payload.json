@@ -1,0 +1,109 @@
+{
+  "window_days": 7,
+  "executive_summary": "This week was about agent products staying hot, compute pressure not cooling off, and a research layer that kept hinting where builders may move next.",
+  "highlights_of_the_week": [
+    {
+      "headline": "OpenAI expands enterprise agent rollout",
+      "source": "Fortune",
+      "url": "https://fortune.example/openai-enterprise-agents",
+      "why_it_matters": "Seen across 5 article(s) from 3 source(s).",
+      "eli5": "ELI5: Big companies keep testing agent workflows because they think it might save people time.",
+      "confidence": "High confidence"
+    },
+    {
+      "headline": "Anthropic signs another large cloud partnership",
+      "source": "Reuters",
+      "url": "https://reuters.example/anthropic-cloud-partnership",
+      "why_it_matters": "Seen across 3 article(s) from 2 source(s).",
+      "eli5": "ELI5: More cloud deals usually mean someone expects demand to keep growing.",
+      "confidence": "Medium confidence"
+    }
+  ],
+  "trending_directions": [
+    {
+      "topic": "AI Agents",
+      "direction": "rising",
+      "evidence_score": 5.1,
+      "confidence": "High confidence",
+      "note": "Supported by 4 cluster(s) this week."
+    },
+    {
+      "topic": "Data Centers / Compute",
+      "direction": "rising",
+      "evidence_score": 3.2,
+      "confidence": "Medium confidence",
+      "note": "Supported by 2 cluster(s) this week."
+    }
+  ],
+  "research_focus": [
+    {
+      "topic": "AI Agents",
+      "confidence": "High confidence",
+      "why_now": "AI Agents kept showing up with evidence score 5.1.",
+      "what_to_watch": "Watch for stronger source breadth, repeated mentions, and concrete launches/deployments."
+    },
+    {
+      "topic": "Data Centers / Compute",
+      "confidence": "Medium confidence",
+      "why_now": "Data Centers / Compute kept showing up with evidence score 3.2.",
+      "what_to_watch": "Watch for real deployments, not just capex theater."
+    }
+  ],
+  "research_builder_signals": [
+    {
+      "headline": "LLM safety benchmark measures hallucination loops",
+      "source": "arXiv AI",
+      "subtype": "paper",
+      "confidence": "Medium confidence",
+      "eli5": "ELI5: This research tries to catch when chatbots start confidently making things up."
+    },
+    {
+      "headline": "Open source eval harness gets reproducibility update",
+      "source": "GitHub Blog AI/ML",
+      "subtype": "repo",
+      "confidence": "Early signal",
+      "eli5": "ELI5: This makes it easier for builders to repeat tests and trust the results."
+    },
+    {
+      "headline": "Builders note faster voice-agent deployment patterns",
+      "source": "Follow Builders / blogs",
+      "subtype": "builder feed",
+      "confidence": "Early signal",
+      "eli5": "ELI5: Builders are independently seeing the same useful pattern."
+    },
+    {
+      "headline": "Model routing docs explain cheaper fallback chains",
+      "source": "Follow Builders / podcasts",
+      "subtype": "product doc",
+      "confidence": "Early signal",
+      "eli5": "ELI5: This is a practical playbook for making AI tools cheaper to run."
+    },
+    {
+      "headline": "New multimodal launch suggests better document parsing",
+      "source": "Follow Builders / x",
+      "subtype": "product / launch",
+      "confidence": "Early signal",
+      "eli5": "ELI5: This launch hints that messy files may get easier for AI tools to understand."
+    }
+  ],
+  "missed_but_emerging": [
+    {
+      "headline": "Open-source image tooling sees another funding push",
+      "source": "TechCrunch",
+      "subtype": "product / launch",
+      "confidence": "Early signal",
+      "eli5": "ELI5: This is not the biggest story yet, but it keeps showing signs of life."
+    },
+    {
+      "headline": "Founders keep shipping thinner agent wrappers",
+      "source": "Semafor",
+      "subtype": "builder feed",
+      "confidence": "Early signal",
+      "eli5": "ELI5: A lot of startups may be building the same thing with different paint."
+    }
+  ],
+  "thinking_prompts": [
+    "What changes if AI Agents keeps accelerating for another month?",
+    "Where is hype outrunning evidence in Data Centers / Compute?"
+  ]
+}

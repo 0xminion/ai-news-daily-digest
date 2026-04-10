@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, build_weekly_preview, render_weekly_highlights
-from ai_news_digest.config import USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
+from ai_news_digest.config import RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import summarize
 from ai_news_digest.output.telegram import _format_digest, send_digest, send_text_report
 from ai_news_digest.sources.pipeline import fetch_digest_inputs
@@ -48,6 +48,7 @@ def run_daily() -> int:
 def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
     return {
         'window_days': 7,
+        'executive_summary': 'This fallback weekly view is built from today’s run so you can inspect structure before a full week of archives exists.',
         'highlights_of_the_week': [
             {
                 'headline': article['title'],
@@ -55,6 +56,7 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
                 'url': article['url'],
                 'why_it_matters': f"Representative daily sample item with ranking score {article.get('ranking_score', 0)}.",
                 'eli5': 'ELI5: This story kept bubbling up, so it is probably worth paying attention to.',
+                'confidence': 'Medium confidence',
             }
             for article in payload.get('main_articles', [])[:3]
         ],
@@ -62,6 +64,7 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
             {
                 'topic': item['topic'],
                 'direction': 'rising',
+                'confidence': 'Medium confidence',
                 'note': f"Current main-news heat: {item['current_count']} article(s) today.",
             }
             for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:3]
@@ -69,6 +72,7 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
         'research_focus': [
             {
                 'topic': item['topic'],
+                'confidence': 'Medium confidence',
                 'why_now': f"This main-news topic is showing active daily momentum ({item['current_count']} today).",
                 'what_to_watch': 'Watch whether repeated coverage becomes a multi-day cluster with broader source support.',
             }
@@ -82,10 +86,24 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
             {
                 'headline': article['title'],
                 'source': article['source'],
+                'subtype': 'paper' if 'arXiv' in article['source'] else 'product / launch',
+                'confidence': 'Early signal',
                 'why_it_matters': 'Research / builder signal sample pulled from the current live run.',
                 'eli5': 'ELI5: This is a technical or builder-side clue that may matter later even if it is not the biggest news item today.',
             }
-            for article in payload.get('research_articles', [])[:3]
+            for article in payload.get('research_articles', [])[:RESEARCH_SIGNALS_COUNT]
+        ],
+        'missed_but_emerging': [
+            {
+                'headline': article['title'],
+                'source': article['source'],
+                'url': article['url'],
+                'subtype': 'product / launch',
+                'confidence': 'Early signal',
+                'why_now': 'It is not dominant yet, but it is showing up often enough to watch.',
+                'eli5': 'ELI5: This is a smaller story that could grow into something bigger soon.',
+            }
+            for article in payload.get('main_articles', [])[3:5]
         ],
     }
 
@@ -143,6 +161,8 @@ def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
     for idx, article in enumerate(main_articles[:5], start=1):
         lines.append(f"{idx}. {article['title']}")
         lines.append(f"Representative score: {article.get('ranking_score', 0)}")
+        if article.get('ranking_debug', {}).get('reasons'):
+            lines.append(f"Why it made the digest (debug): {' | '.join(article['ranking_debug']['reasons'])}")
         lines.append(f"Source: {article['source']} - {article['url']}")
         lines.append('')
     lines.append('ALSO WORTH KNOWING:')
@@ -151,8 +171,10 @@ def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
     if research_articles:
         lines.append('')
         lines.append('RESEARCH / BUILDER SIGNALS:')
-        for article in research_articles[:4]:
-            lines.append(f"- {article['title']} | {article['source']} - {article['url']}")
+        for article in research_articles[:RESEARCH_SIGNALS_COUNT]:
+            subtype = article.get('subtype', 'signal')
+            lines.append(f"- [{subtype}] {article['title']} | {article['source']} - {article['url']}")
+            lines.append(f"  ELI5: {article.get('eli5', 'This is a technical clue that may matter later even if it is not the biggest headline now.')}")
     lines.append('')
     lines.extend(weekly_preview.split('\n'))
     return '\n'.join(lines)

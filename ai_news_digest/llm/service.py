@@ -19,6 +19,9 @@ Rules:
 - Hacker News is enrichment-only. Do not list it as a standalone source.
 - Research / Builder Signals must be its own separate section, not mixed into the main highlights.
 - If weekly preview context is provided, include a short WEEKLY PREVIEW section near the end.
+- Keep Research / Builder Signals to at most 5 items.
+- For each Research / Builder Signals item, add one plain-English ELI5 continuation line right below the bullet.
+- If a research/builder signal has a subtype label in the article metadata, preserve it like [paper], [repo], [builder feed], or [product / launch].
 
 Output format — use EXACTLY this structure:
 BRIEF RUNDOWN:
@@ -45,8 +48,10 @@ ALSO WORTH KNOWING:
 - [Headline] | [Publication Name] - [URL]
 
 RESEARCH / BUILDER SIGNALS:
-- [Headline] | [Publication Name] - [URL]
-- [Headline] | [Publication Name] - [URL]
+- [[Subtype]] [Headline] | [Publication Name] - [URL]
+  ELI5: [simple one-line explanation]
+- [[Subtype]] [Headline] | [Publication Name] - [URL]
+  ELI5: [simple one-line explanation]
 
 WEEKLY PREVIEW:
 - [brief preview bullet]
@@ -84,6 +89,9 @@ def _serialize_articles(articles: list[dict]) -> str:
                 'source': a['source'],
                 'sources': a.get('sources', [a['source']]),
                 'source_count': a.get('source_count', 1),
+                'subtype': a.get('subtype', ''),
+                'eli5': a.get('eli5', ''),
+                'ranking_debug': a.get('ranking_debug', {}),
                 'hacker_news': {
                     'points': a.get('hn_points', 0),
                     'comments': a.get('hn_comments', 0),

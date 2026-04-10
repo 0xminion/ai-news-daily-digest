@@ -68,3 +68,15 @@ class TestSendMessage:
         mock_post.side_effect = [MagicMock(status_code=500, text='Server error'), MagicMock(status_code=200)]
         assert _send_message('Hello', bot_token='abc', chat_id='123') is True
         assert mock_post.call_count == 2
+
+
+    def test_research_bullets_keep_eli5_line(self):
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com\n\n'
+            'ALSO WORTH KNOWING:\n- Side item | Test - https://example.com/also\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- [paper] Paper title | arXiv AI - https://example.com/paper\n  ELI5: this is a simple explanation'
+        )
+        messages = _format_digest(summary)
+        assert any('ELI5: this is a simple explanation' in msg for msg in messages)
+        assert any('[paper] Paper title' in msg for msg in messages)

@@ -5,7 +5,7 @@ from collections import defaultdict
 from ai_news_digest.analysis.clustering import cluster_articles
 from ai_news_digest.analysis.ranking import rank_clustered_articles
 from ai_news_digest.analysis.trends import compute_trend_snapshot, extract_topics
-from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, logger
+from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, RESEARCH_SIGNALS_COUNT, RESEARCH_TOPIC_CAP_PER_TOPIC, logger
 from ai_news_digest.storage.archive import exclude_cross_day_duplicates
 from ai_news_digest.storage.topic_memory import load_topic_memory, save_topic_memory
 from .hackernews import enrich_articles_with_hn
@@ -32,17 +32,54 @@ def _apply_source_caps(ranked: list[dict], caps: dict[str, int], default_cap: in
     return selected
 
 
-def _apply_research_topic_caps(ranked: list[dict], limit: int = 4) -> list[dict]:
+def _infer_subtype(article: dict) -> str:
+    source = (article.get('source') or '').lower()
+    title = (article.get('title') or '').lower()
+    url = (article.get('url') or '').lower()
+    if 'arxiv' in source:
+        return 'paper'
+    if 'github' in source or 'repo' in title or 'repository' in title:
+        return 'repo'
+    if 'follow builders' in source:
+        return 'builder feed'
+    if 'docs' in title or 'documentation' in title or 'docs.' in url or '/docs' in url:
+        return 'product doc'
+    return 'product / launch'
+
+
+def _infer_eli5(article: dict) -> str:
+    subtype = article.get('subtype') or _infer_subtype(article)
+    mapping = {
+        'paper': 'This is research work. It matters if the idea later turns into tools, products, or better models.',
+        'repo': 'This is code builders can use. It matters because people can actually try or build on it.',
+        'builder feed': 'This is a signal from people building things. It can hint at what is changing before headlines catch up.',
+        'product doc': 'This is documentation for a product or tool. It matters because it shows what is becoming usable in real life.',
+        'product / launch': 'This is a product or launch signal. It matters if it starts changing what people use or build.',
+    }
+    return mapping.get(subtype, 'This is a technical clue that may matter later even if it is not the biggest headline today.')
+
+
+def _apply_research_topic_caps(ranked: list[dict], limit: int = RESEARCH_SIGNALS_COUNT) -> list[dict]:
     selected = []
     topic_used = defaultdict(int)
     fallback_bucket = 'Research / Other'
+    overflow = []
     for article in ranked:
-        topics = list(extract_topics(article)) or [fallback_bucket]
-        if all(topic_used[topic] >= 1 for topic in topics):
+        topics = sorted(extract_topics(article)) or [fallback_bucket]
+        article = dict(article)
+        article['subtype'] = article.get('subtype') or _infer_subtype(article)
+        article['eli5'] = article.get('eli5') or _infer_eli5(article)
+        if any(topic_used[topic] >= RESEARCH_TOPIC_CAP_PER_TOPIC for topic in topics):
+            overflow.append(article)
             continue
         selected.append(article)
         for topic in topics:
             topic_used[topic] += 1
+        if len(selected) >= limit:
+            return selected
+
+    for article in overflow:
+        selected.append(article)
         if len(selected) >= limit:
             break
     return selected
@@ -84,9 +121,9 @@ def fetch_digest_inputs() -> dict:
         ranked_research,
         caps={'arXiv AI': 2, 'arXiv ML': 1, 'GitHub Blog AI/ML': 1},
         default_cap=2,
-        limit=8,
+        limit=max(8, RESEARCH_SIGNALS_COUNT + 3),
     )
-    capped_research = _apply_research_topic_caps(source_capped_research, limit=4)
+    capped_research = _apply_research_topic_caps(source_capped_research, limit=RESEARCH_SIGNALS_COUNT)
 
     save_topic_memory({
         'saved_at': trend_snapshot.get('daily_topic_counts', [{}])[-1].get('date'),

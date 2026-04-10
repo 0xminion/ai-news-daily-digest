@@ -1,0 +1,167 @@
+{
+  "main_articles": [
+    {
+      "title": "OpenAI expands enterprise agent rollout",
+      "source": "Fortune",
+      "url": "https://fortune.example/openai-enterprise-agents",
+      "ranking_score": 1.92,
+      "ranking_debug": {
+        "reasons": [
+          "Multiple outlets clustered around it (3 source(s)).",
+          "Matched a heating-up topic: AI Agents.",
+          "This topic has been showing up across recent runs."
+        ]
+      }
+    },
+    {
+      "title": "Anthropic signs another large cloud partnership",
+      "source": "Reuters",
+      "url": "https://reuters.example/anthropic-cloud-partnership",
+      "ranking_score": 1.77,
+      "ranking_debug": {
+        "reasons": [
+          "Strong enough overall score without one giant signal dominating it."
+        ]
+      }
+    },
+    {
+      "title": "Microsoft rolls out new Copilot workflow controls",
+      "source": "The Verge",
+      "url": "https://theverge.example/copilot-workflow-controls",
+      "ranking_score": 1.64,
+      "ranking_debug": {
+        "reasons": [
+          "Multiple outlets clustered around it (2 source(s))."
+        ]
+      }
+    },
+    {
+      "title": "AI chip demand keeps pressure on data center buildouts",
+      "source": "CNBC",
+      "url": "https://cnbc.example/data-center-buildouts",
+      "ranking_score": 1.58,
+      "ranking_debug": {
+        "reasons": [
+          "Matched a heating-up topic: Data Centers / Compute."
+        ]
+      }
+    },
+    {
+      "title": "Open-source image tooling sees another funding push",
+      "source": "TechCrunch",
+      "url": "https://techcrunch.example/open-source-image-tooling",
+      "ranking_score": 1.49,
+      "ranking_debug": {
+        "reasons": [
+          "This topic has been showing up across recent runs."
+        ]
+      }
+    },
+    {
+      "title": "Meta tweaks ad tooling with more AI automation",
+      "source": "WSJ",
+      "url": "https://wsj.example/meta-ad-tooling"
+    },
+    {
+      "title": "Google updates workspace AI admin controls",
+      "source": "Google Blog",
+      "url": "https://blog.google.example/workspace-admin-controls"
+    },
+    {
+      "title": "Regulators keep circling AI disclosure rules",
+      "source": "AP News",
+      "url": "https://ap.example/ai-disclosure-rules"
+    },
+    {
+      "title": "Founders keep shipping thinner agent wrappers",
+      "source": "Semafor",
+      "url": "https://semafor.example/agent-wrappers"
+    }
+  ],
+  "research_articles": [
+    {
+      "title": "LLM safety benchmark measures hallucination loops",
+      "source": "arXiv AI",
+      "url": "https://arxiv.org/abs/1111.1111",
+      "subtype": "paper",
+      "eli5": "This is research trying to measure when chatbots go off the rails."
+    },
+    {
+      "title": "Open source eval harness gets reproducibility update",
+      "source": "GitHub Blog AI/ML",
+      "url": "https://github.blog/example/eval-harness-update",
+      "subtype": "repo",
+      "eli5": "This is code and tooling that helps builders test models more reliably."
+    },
+    {
+      "title": "Builders note faster voice-agent deployment patterns",
+      "source": "Follow Builders / blogs",
+      "url": "https://builders.example/voice-agents",
+      "subtype": "builder feed",
+      "eli5": "Builders are seeing a repeat pattern that could become mainstream product behavior."
+    },
+    {
+      "title": "Model routing docs explain cheaper fallback chains",
+      "source": "Follow Builders / podcasts",
+      "url": "https://builders.example/model-routing-docs",
+      "subtype": "product doc",
+      "eli5": "This explains a practical way to make AI tools cheaper without breaking them."
+    },
+    {
+      "title": "New multimodal launch suggests better document parsing",
+      "source": "Follow Builders / x",
+      "url": "https://builders.example/multimodal-docs",
+      "subtype": "product / launch",
+      "eli5": "This launch could make it easier for apps to read messy files and screenshots."
+    }
+  ],
+  "trend_snapshot": {
+    "main_news": {
+      "heating_up": [
+        {
+          "topic": "AI Agents",
+          "current_count": 5,
+          "previous_average": 1.5
+        },
+        {
+          "topic": "Data Centers / Compute",
+          "current_count": 3,
+          "previous_average": 1.0
+        },
+        {
+          "topic": "Open Source / Repos",
+          "current_count": 2,
+          "previous_average": 0.5
+        }
+      ],
+      "cooling_down": [
+        {
+          "topic": "AI Regulation / Policy",
+          "current_count": 0,
+          "previous_average": 2.0
+        }
+      ]
+    },
+    "research_builder": {
+      "heating_up": [
+        {
+          "topic": "Research / Papers",
+          "current_count": 4,
+          "previous_average": 1.0
+        },
+        {
+          "topic": "Speech / Audio AI",
+          "current_count": 2,
+          "previous_average": 0.5
+        }
+      ],
+      "cooling_down": [
+        {
+          "topic": "Image Generation",
+          "current_count": 0,
+          "previous_average": 1.5
+        }
+      ]
+    }
+  }
+}
