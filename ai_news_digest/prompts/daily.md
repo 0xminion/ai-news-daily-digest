@@ -38,7 +38,7 @@ You MUST respond with valid JSON matching this exact schema:
       "headline": "...",
       "source": "Publication Name",
       "url": "https://...",
-      "subtype": "[paper] or [repo] or [builder feed] or [product / launch]"
+      "subtype": "paper or repo or builder feed or product / launch (no brackets — they are added by the renderer)"
     }
   ],
   "weekly_preview": ["bullet point 1", "bullet point 2"]
