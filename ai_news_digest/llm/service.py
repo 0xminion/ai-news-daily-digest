@@ -158,7 +158,8 @@ def _structured_to_text(data: dict) -> str:
     if research:
         lines.append('Research / Builder Signals:')
         for item in research:
-            subtype = item.get('subtype', '')
+            # Strip brackets from subtype if LLM included them (e.g. "[paper]" → "paper")
+            subtype = (item.get('subtype') or '').strip('[]')
             headline = item.get('headline', '')
             source = item.get('source', '')
             url = item.get('url', '')
