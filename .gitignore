@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 data/
 generated_samples/
+.env
+send_to_*.py
