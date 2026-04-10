@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from ai_news_digest.output.telegram import _escape, _format_digest, _send_message, send_digest
+from ai_news_digest.output.telegram import _embed_links, _escape, _format_digest, _send_message, send_digest
 
 
 class TestEscape:
@@ -89,6 +89,29 @@ class TestSendMessage:
             'Also Worth Knowing:\n- Side item | Side Source (https://example.com/also)'
         )
         messages = _format_digest(summary)
-        assert any('<a href="https://example.com">1. Headline</a>' in msg for msg in messages)
-        assert any('<a href="https://example.com/also">Side item</a> (Side Source)' in msg for msg in messages)
+        # Source name is linked (not title, not raw URL)
+        assert any('Source: <a href="https://example.com">Test Source</a>' in msg for msg in messages)
+        assert any('Side item — <a href="https://example.com/also">Side Source</a>' in msg for msg in messages)
         assert any('Highlights' in msg for msg in messages)
+
+
+class TestEmbedLinks:
+    def test_converts_bare_url_to_embedded_link(self):
+        text = 'Check out https://example.com/path for details'
+        result = _embed_links(text)
+        assert '<a href="https://example.com/path">example.com</a>' in result
+        assert 'https://example.com/path' not in result.split('</a>')[1] if '</a>' in result else True
+
+    def test_handles_multiple_urls(self):
+        text = 'See https://a.com and https://b.org/page'
+        result = _embed_links(text)
+        assert '<a href="https://a.com">a.com</a>' in result
+        assert '<a href="https://b.org/page">b.org</a>' in result
+
+    def test_strips_www_prefix(self):
+        result = _embed_links('Visit https://www.example.com')
+        assert '>example.com</a>' in result
+
+    def test_no_urls_unchanged(self):
+        text = 'No links here'
+        assert _embed_links(text) == text

@@ -176,6 +176,15 @@ def _split_inline_source(line: str) -> tuple[str, tuple[str, str] | None]:
     return line, None
 
 
+def _embed_links(text: str) -> str:
+    """Convert bare URLs in body text into hidden embedded links on domain name."""
+    def _replace_url(m):
+        url = m.group(0)
+        domain = re.sub(r'^https?://(www\.)?', '', url).split('/')[0]
+        return f'<a href="{url}">{_escape(domain)}</a>'
+    return re.sub(r'https?://\S+', _replace_url, text)
+
+
 def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str:
     blocks = [block for block in raw.split('\n\n') if block.strip()]
     rendered_blocks = []
@@ -197,16 +206,15 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
             if body:
                 if not include_signal_annotations and ('Hacker News' in body or 'points' in body):
                     continue
-                body_lines.append(_escape(body))
+                body_lines.append(_embed_links(_escape(body)))
             if inline_source:
                 source_name, source_url = inline_source
-        if source_url:
-            rendered_title = f'<b><a href="{source_url}">{_escape(title_line)}</a></b>'
-        else:
-            rendered_title = f'<b>{_escape(title_line)}</b>'
+        rendered_title = f'<b>{_escape(title_line)}</b>'
         rendered = [rendered_title]
         rendered.extend(body_lines)
-        if source_name:
+        if source_name and source_url:
+            rendered.append(f'Source: <a href="{source_url}">{_escape(source_name)}</a>')
+        elif source_name:
             rendered.append(f'Source: {_escape(source_name)}')
         rendered_blocks.append('\n'.join(rendered))
     return '\n\n'.join(rendered_blocks)
@@ -224,11 +232,11 @@ def _format_bullets(raw: str) -> str:
             title = _escape(pipe.group('title').strip())
             source = _escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
-            rendered = [f'• <a href="{url}">{title}</a> ({source})']
+            rendered = [f'• {title} — <a href="{url}">{source}</a>']
         else:
-            rendered = [f'• {_escape(first)}']
+            rendered = [f'• {_embed_links(_escape(first))}']
         for extra in lines[1:]:
-            rendered.append(f'  {_escape(extra.strip())}')
+            rendered.append(f'  {_embed_links(_escape(extra.strip()))}')
         formatted_blocks.append('\n'.join(rendered))
     return '\n\n'.join(formatted_blocks)
 
