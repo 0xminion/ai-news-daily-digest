@@ -8,13 +8,14 @@ from ai_news_digest.analysis.trends import compute_trend_snapshot, extract_topic
 from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, RESEARCH_SIGNALS_COUNT, RESEARCH_TOPIC_CAP_PER_TOPIC, logger
 from ai_news_digest.storage.archive import exclude_cross_day_duplicates
 from ai_news_digest.storage.topic_memory import load_topic_memory, save_topic_memory
+from .github_trending import fetch_github_trending
 from .hackernews import enrich_articles_with_hn
 from .orthogonal import fetch_orthogonal_signal_articles
 from .pages import fetch_page_articles
 from .rss import fetch_rss_articles
 
 
-RESEARCH_SOURCES = {'arXiv AI', 'arXiv ML', 'GitHub Blog AI/ML', 'Follow Builders / x', 'Follow Builders / podcasts', 'Follow Builders / blogs'}
+RESEARCH_SOURCES = {'arXiv AI', 'arXiv ML', 'GitHub Blog AI/ML', 'GitHub Trending', 'Follow Builders / x', 'Follow Builders / podcasts', 'Follow Builders / blogs'}
 
 
 def _apply_source_caps(ranked: list[dict], caps: dict[str, int], default_cap: int = 5, limit: int = MAX_ARTICLES_TO_SUMMARIZE) -> list[dict]:
@@ -89,7 +90,15 @@ def fetch_digest_inputs() -> dict:
     core_articles = []
     core_articles.extend(fetch_rss_articles())
     core_articles.extend(fetch_page_articles())
+
+    # Research/builder signals from orthogonal sources
     research_articles = fetch_orthogonal_signal_articles()
+
+    # GitHub trending (3 fast-moving AI repos daily)
+    trending_articles = fetch_github_trending(top_n=3)
+    if trending_articles:
+        research_articles.extend(trending_articles)
+        logger.info('Added %d GitHub trending repos to research signals', len(trending_articles))
 
     core_articles = enrich_articles_with_hn(core_articles)
     logger.info('Found %d core AI articles and %d research/builder signal articles before cross-day dedup', len(core_articles), len(research_articles))
@@ -119,7 +128,7 @@ def fetch_digest_inputs() -> dict:
     )
     source_capped_research = _apply_source_caps(
         ranked_research,
-        caps={'arXiv AI': 2, 'arXiv ML': 1, 'GitHub Blog AI/ML': 1},
+        caps={'arXiv AI': 2, 'arXiv ML': 1, 'GitHub Blog AI/ML': 1, 'GitHub Trending': 3},
         default_cap=2,
         limit=max(8, RESEARCH_SIGNALS_COUNT + 3),
     )

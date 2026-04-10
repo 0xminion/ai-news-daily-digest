@@ -8,7 +8,9 @@ import cloudscraper
 import requests
 from bs4 import BeautifulSoup
 
-from ai_news_digest.config import AI_KEYWORDS, CONTENT_FETCH_TIMEOUT, FULL_CONTENT_FETCH_LIMIT, MIN_ARTICLE_TEXT_LENGTH, PAGE_SOURCES, RSS_WINDOW_HOURS, USER_AGENT, logger
+from ai_news_digest.config import CONTENT_FETCH_TIMEOUT, FULL_CONTENT_FETCH_LIMIT, MIN_ARTICLE_TEXT_LENGTH, PAGE_SOURCES, RSS_WINDOW_HOURS, USER_AGENT, logger
+from ai_news_digest.config.keywords import matches_ai_keywords
+from ai_news_digest.utils.retry import with_retry
 from .common import within_hours
 
 _SSRF_BLOCKED_HOSTS = frozenset({'169.254.169.254', 'metadata.google.internal', 'metadata.azure.com', 'metadata.internal', 'kubernetes.default', 'consul.service.consul'})
@@ -19,37 +21,62 @@ _ARTICLE_URL_PATTERN = re.compile(r'/20\d{2}/\d{2}/\d{2}/')
 _DATE_RE = re.compile(r'"(?:datePublished|Published)":"([^"]+)"')
 
 
-def matches_ai_keywords(text: str) -> bool:
-    return any(kw in text.lower() for kw in AI_KEYWORDS)
-
+# ---------------------------------------------------------------------------
+# URL safety
+# ---------------------------------------------------------------------------
 
 def _is_allowed_url(url: str) -> bool:
     parsed = urlparse(url)
     return parsed.scheme in _ALLOWED_SCHEMES and parsed.hostname not in _SSRF_BLOCKED_HOSTS
 
 
-def _base_session():
-    s = requests.Session(); s.headers.update({'User-Agent': USER_AGENT}); return s
-
-
-def _cloudscraper_session():
-    s = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False}); s.headers.update({'User-Agent': USER_AGENT}); return s
-
+# ---------------------------------------------------------------------------
+# Block / paywall detection
+# ---------------------------------------------------------------------------
 
 def _looks_blocked(status_code: int, text: str) -> bool:
-    blob = (text or '').lower(); return status_code in {403,429,503} or any(t in blob for t in _BLOCK_PATTERNS)
+    blob = (text or '').lower()
+    return status_code in {403, 429, 503} or any(t in blob for t in _BLOCK_PATTERNS)
 
 
 def _looks_paywalled(text: str) -> bool:
-    blob = (text or '').lower(); return any(t in blob for t in _PAYWALL_PATTERNS)
+    blob = (text or '').lower()
+    return any(t in blob for t in _PAYWALL_PATTERNS)
 
 
-def _extract_archive_org_url(target_url: str):
-    try:
-        r = requests.get('https://archive.org/wayback/available', params={'url': target_url}, timeout=CONTENT_FETCH_TIMEOUT, headers={'User-Agent': USER_AGENT})
-        r.raise_for_status(); data = r.json(); snap = data.get('archived_snapshots', {}).get('closest', {}); url = snap.get('url'); return url if url and snap.get('available') else None
-    except Exception as exc:
-        logger.info('Archive.org lookup failed for %s: %s', target_url, exc); return None
+# ---------------------------------------------------------------------------
+# HTTP sessions
+# ---------------------------------------------------------------------------
+
+def _base_session():
+    s = requests.Session()
+    s.headers.update({'User-Agent': USER_AGENT})
+    return s
+
+
+def _cloudscraper_session():
+    s = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
+    s.headers.update({'User-Agent': USER_AGENT})
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Archive fallbacks
+# ---------------------------------------------------------------------------
+
+@with_retry(max_attempts=2, delay=3.0)
+def _extract_archive_org_url(target_url: str) -> str | None:
+    r = requests.get(
+        'https://archive.org/wayback/available',
+        params={'url': target_url},
+        timeout=CONTENT_FETCH_TIMEOUT,
+        headers={'User-Agent': USER_AGENT},
+    )
+    r.raise_for_status()
+    data = r.json()
+    snap = data.get('archived_snapshots', {}).get('closest', {})
+    url = snap.get('url')
+    return url if url and snap.get('available') else None
 
 
 def _archive_ph_candidates(target_url: str) -> list[str]:
@@ -57,8 +84,16 @@ def _archive_ph_candidates(target_url: str) -> list[str]:
     return [f'https://archive.ph/{target_url}', f'https://archive.ph/{encoded}', f'https://archive.today/{encoded}']
 
 
+# ---------------------------------------------------------------------------
+# Fetching with fallback chain
+# ---------------------------------------------------------------------------
+
+@with_retry(max_attempts=2, delay=3.0, backoff=2.0)
 def _fetch_html(url: str, use_cloudscraper=False):
-    s = _cloudscraper_session() if use_cloudscraper else _base_session(); r = s.get(url, timeout=CONTENT_FETCH_TIMEOUT); r.raise_for_status(); return r
+    s = _cloudscraper_session() if use_cloudscraper else _base_session()
+    r = s.get(url, timeout=CONTENT_FETCH_TIMEOUT)
+    r.raise_for_status()
+    return r
 
 
 def fetch_html_with_fallback(url: str, source_name: str) -> tuple[str, str]:
@@ -78,7 +113,10 @@ def fetch_html_with_fallback(url: str, source_name: str) -> tuple[str, str]:
         logger.info('Cloudscraper fetch for %s still looked blocked/paywalled; trying archives', url)
     except Exception as exc:
         logger.info('Cloudscraper fetch failed for %s: %s', url, exc)
-    archive_url = _extract_archive_org_url(url)
+    try:
+        archive_url = _extract_archive_org_url(url)
+    except Exception:
+        archive_url = None
     for candidate in ([archive_url] if archive_url else []) + _archive_ph_candidates(url):
         if not candidate:
             continue
@@ -92,17 +130,22 @@ def fetch_html_with_fallback(url: str, source_name: str) -> tuple[str, str]:
     raise RuntimeError(f'Unable to fetch content for {url}')
 
 
+# ---------------------------------------------------------------------------
+# Content extraction
+# ---------------------------------------------------------------------------
+
 def normalize_candidate_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.netloc in {'web.archive.org', 'archive.org'}:
         marker = '/http'
         if marker in parsed.path:
-            return f"http{parsed.path.split(marker,1)[1]}"
+            return f"http{parsed.path.split(marker, 1)[1]}"
     return url
 
 
 def extract_article_text(html: str) -> str:
-    soup = BeautifulSoup(html, 'html.parser'); parts = []
+    soup = BeautifulSoup(html, 'html.parser')
+    parts = []
     for p in soup.find_all('p'):
         text = ' '.join(p.get_text(' ', strip=True).split())
         if len(text) >= 40:
@@ -145,13 +188,20 @@ def enrich_article(article: dict) -> dict:
     return article
 
 
+# ---------------------------------------------------------------------------
+# Page source fetching
+# ---------------------------------------------------------------------------
+
 def fortune_candidates_from_html(html: str, listing_url: str) -> list[dict]:
-    soup = BeautifulSoup(html, 'html.parser'); seen, articles = set(), []
+    soup = BeautifulSoup(html, 'html.parser')
+    seen, articles = set(), []
     for anchor in soup.find_all('a', href=True):
-        href = anchor['href'].strip(); title = ' '.join(anchor.get_text(' ', strip=True).split())
+        href = anchor['href'].strip()
+        title = ' '.join(anchor.get_text(' ', strip=True).split())
         if not href or not title:
             continue
-        absolute_url = normalize_candidate_url(urljoin(listing_url, href)); parsed = urlparse(absolute_url)
+        absolute_url = normalize_candidate_url(urljoin(listing_url, href))
+        parsed = urlparse(absolute_url)
         if parsed.netloc != 'fortune.com' or not _ARTICLE_URL_PATTERN.search(parsed.path) or absolute_url in seen:
             continue
         seen.add(absolute_url)
@@ -169,7 +219,7 @@ def fetch_page_articles(sources=None) -> list[dict]:
             candidates = fortune_candidates_from_html(html, fetched_from) if source.get('extractor') == 'fortune_ai' else []
             for candidate in candidates[:FULL_CONTENT_FETCH_LIMIT]:
                 enriched = enrich_article(candidate)
-                text = f"{enriched.get('title','')} {enriched.get('summary','')} {enriched.get('content','')}"
+                text = f"{enriched.get('title', '')} {enriched.get('summary', '')} {enriched.get('content', '')}"
                 if matches_ai_keywords(text):
                     articles.append(enriched)
         except Exception as exc:
