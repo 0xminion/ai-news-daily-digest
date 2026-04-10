@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 from datetime import datetime, timezone
 from urllib.parse import quote, urljoin, urlparse
@@ -13,7 +14,15 @@ from ai_news_digest.config.keywords import matches_ai_keywords
 from ai_news_digest.utils.retry import with_retry
 from .common import within_hours
 
-_SSRF_BLOCKED_HOSTS = frozenset({'169.254.169.254', 'metadata.google.internal', 'metadata.azure.com', 'metadata.internal', 'kubernetes.default', 'consul.service.consul'})
+_SSRF_BLOCKED_HOSTS = frozenset({
+    # Cloud metadata endpoints
+    '169.254.169.254', 'metadata.google.internal', 'metadata.azure.com',
+    'metadata.internal', 'kubernetes.default', 'consul.service.consul',
+    # Localhost
+    'localhost', '127.0.0.1', '0.0.0.0', '::1',
+    # Common internal names
+    'host.docker.internal', 'gateway.docker.internal',
+})
 _ALLOWED_SCHEMES = frozenset({'http', 'https'})
 _BLOCK_PATTERNS = ('cf-browser-verification', 'cloudflare', 'attention required', 'just a moment', 'captcha', 'access denied')
 _PAYWALL_PATTERNS = ('subscribe to continue', 'subscription required', 'for subscribers', 'sign in to continue', 'join to read', 'create a free account to continue', 'paywall')
@@ -27,7 +36,21 @@ _DATE_RE = re.compile(r'"(?:datePublished|Published)":"([^"]+)"')
 
 def _is_allowed_url(url: str) -> bool:
     parsed = urlparse(url)
-    return parsed.scheme in _ALLOWED_SCHEMES and parsed.hostname not in _SSRF_BLOCKED_HOSTS
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return False
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    if hostname in _SSRF_BLOCKED_HOSTS:
+        return False
+    # Also check if hostname is a private IP
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return False
+    except ValueError:
+        pass  # hostname is not an IP, that's fine
+    return True
 
 
 # ---------------------------------------------------------------------------

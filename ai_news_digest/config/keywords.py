@@ -28,7 +28,8 @@ _AI_PATTERNS = [
     (re.compile(r'\b(?:deepmind|gemini)\b', re.I), 'google-ai'),
     (re.compile(r'\b(?:hugging\s?face|huggingface)\b', re.I), 'huggingface'),
     (re.compile(r'\b(?:mistral|cohere|perplexity)\b', re.I), 'ai-startup'),
-    (re.compile(r'\b(?:groq|xai|grok)\b', re.I), 'ai-infra'),
+    (re.compile(r'\b(?:groq|xai)\b', re.I), 'ai-infra'),
+    (re.compile(r'\bgrok\b(?=\s+(?:model|ai|llm|api))', re.I), 'ai-infra'),
     (re.compile(r'\b(?:llama|meta\s+ai)\b', re.I), 'meta-ai'),
     (re.compile(r'\bnvidia\b.*\b(?:ai|gpu|cuda|chip)\b', re.I), 'nvidia-ai'),
 
@@ -40,18 +41,15 @@ _AI_PATTERNS = [
     (re.compile(r'\b(?:open[\s-]?source\s+model|weights?\s+release)\b', re.I), 'oss-model'),
 ]
 
-_AI_PATTERN_COMPILED = [(p, tag) for p, tag in _AI_PATTERNS]
-
-
 def matches_ai_keywords(text: str) -> bool:
     """Check if text matches any AI/ML keyword pattern.
 
     Uses regex with word boundaries instead of brittle substring matching.
     Returns True if any pattern matches.
     """
-    return any(pattern.search(text) for pattern, _ in _AI_PATTERN_COMPILED)
+    return any(pattern.search(text) for pattern, _ in _AI_PATTERNS)
 
 
 def get_matched_tags(text: str) -> list[str]:
     """Return list of matched keyword tags for debugging/ranking."""
-    return [tag for pattern, tag in _AI_PATTERN_COMPILED if pattern.search(text)]
+    return [tag for pattern, tag in _AI_PATTERNS if pattern.search(text)]
