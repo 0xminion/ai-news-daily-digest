@@ -2,26 +2,31 @@ AI Weekly Highlights
 
 Highlights of the Week:
 1. Meta’s New AI Asked for My Raw Health Data—and Gave Me Terrible Advice
-   Representative daily sample item with ranking score 0.8698.
+   Representative daily sample item with ranking score 0.8686.
    ELI5: This story kept bubbling up, so it is probably worth paying attention to.
    Source: Wired - https://www.wired.com/story/metas-new-ai-asked-for-my-raw-health-data-and-gave-me-terrible-advice/
 2. OpenAI Backs Bill That Would Limit Liability for AI-Enabled Mass Deaths or Financial Disasters
-   Representative daily sample item with ranking score 0.8029.
+   Representative daily sample item with ranking score 0.8017.
    ELI5: This story kept bubbling up, so it is probably worth paying attention to.
    Source: Wired - https://www.wired.com/story/openai-backs-bill-exempt-ai-firms-model-harm-lawsuits/
 3. ChatGPT has a new $100 per month Pro subscription
-   Representative daily sample item with ranking score 0.7854.
+   Representative daily sample item with ranking score 0.7842.
    ELI5: This story kept bubbling up, so it is probably worth paying attention to.
    Source: The Verge - https://www.theverge.com/ai-artificial-intelligence/909599/chatgpt-pro-subscription-new
 
 Trending and Directions:
+- OpenAI — rising (Current main-news heat: 7 article(s) today.)
+- Anthropic — rising (Current main-news heat: 5 article(s) today.)
+- Open Source / Repos — rising (Current main-news heat: 4 article(s) today.)
 
 Areas of Focus to Research:
+- OpenAI: This main-news topic is showing active daily momentum (7 today).
+  Watch: Watch whether repeated coverage becomes a multi-day cluster with broader source support.
+- Anthropic: This main-news topic is showing active daily momentum (5 today).
+  Watch: Watch whether repeated coverage becomes a multi-day cluster with broader source support.
 
 Research / Builder Signals:
 - High-Precision Estimation of the State-Space Complexity of Shogi via the Monte Carlo Method (arXiv AI)
-  ELI5: This is a technical or builder-side clue that may matter later even if it is not the biggest news item today.
-- Blind Refusal: Language Models Refuse to Help Users Evade Unjust, Absurd, and Illegitimate Rules (arXiv AI)
   ELI5: This is a technical or builder-side clue that may matter later even if it is not the biggest news item today.
 - A Benchmark of Classical and Deep Learning Models for Agricultural Commodity Price Forecasting on A Novel Bangladeshi Market Price Dataset (arXiv ML)
   ELI5: This is a technical or builder-side clue that may matter later even if it is not the biggest news item today.

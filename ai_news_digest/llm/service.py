@@ -25,6 +25,12 @@ BRIEF RUNDOWN:
 [your 2-3 sentence rundown here]
 
 TREND WATCH:
+MAIN NEWS TREND WATCH:
+HEATING UP:
+- [Topic] — [why it is heating up]
+COOLING DOWN:
+- [Topic] — [why it is cooling down]
+RESEARCH / BUILDER TREND WATCH:
 HEATING UP:
 - [Topic] — [why it is heating up]
 COOLING DOWN:

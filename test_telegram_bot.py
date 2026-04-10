@@ -19,7 +19,7 @@ class TestFormatDigest:
     def test_trend_watch_is_rendered(self):
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\nCOOLING DOWN:\n- OpenAI — fewer mentions\n\n'
+            'TREND WATCH:\nMAIN NEWS TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\nCOOLING DOWN:\n- OpenAI — fewer mentions\n\n'
             'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com'
         )
         messages = _format_digest(summary)

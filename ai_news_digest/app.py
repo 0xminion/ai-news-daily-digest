@@ -62,17 +62,17 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
             {
                 'topic': item['topic'],
                 'direction': 'rising',
-                'note': f"Current daily heat: {item['current_count']} article(s) today.",
+                'note': f"Current main-news heat: {item['current_count']} article(s) today.",
             }
-            for item in payload.get('trend_snapshot', {}).get('heating_up', [])[:3]
+            for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:3]
         ],
         'research_focus': [
             {
                 'topic': item['topic'],
-                'why_now': f"This topic is showing active daily momentum ({item['current_count']} today).",
+                'why_now': f"This main-news topic is showing active daily momentum ({item['current_count']} today).",
                 'what_to_watch': 'Watch whether repeated coverage becomes a multi-day cluster with broader source support.',
             }
-            for item in payload.get('trend_snapshot', {}).get('heating_up', [])[:2]
+            for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:2]
         ],
         'thinking_prompts': [
             'What would make this daily pattern persist into a real weekly direction?',
@@ -114,16 +114,30 @@ def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
         'This is a layout/sample render for structure checking. Main news stays separate from research/builder signals, and the weekly preview is short by design.',
         '',
     ]
-    if trend.get('heating_up') or trend.get('cooling_down'):
+    main_trend = trend.get('main_news', {})
+    research_trend = trend.get('research_builder', {})
+    if main_trend.get('heating_up') or main_trend.get('cooling_down') or research_trend.get('heating_up') or research_trend.get('cooling_down'):
         lines.append('TREND WATCH:')
-        if trend.get('heating_up'):
-            lines.append('HEATING UP:')
-            for item in trend['heating_up'][:3]:
-                lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
-        if trend.get('cooling_down'):
-            lines.append('COOLING DOWN:')
-            for item in trend['cooling_down'][:2]:
-                lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
+        if main_trend.get('heating_up') or main_trend.get('cooling_down'):
+            lines.append('MAIN NEWS TREND WATCH:')
+            if main_trend.get('heating_up'):
+                lines.append('HEATING UP:')
+                for item in main_trend['heating_up'][:3]:
+                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
+            if main_trend.get('cooling_down'):
+                lines.append('COOLING DOWN:')
+                for item in main_trend['cooling_down'][:2]:
+                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
+        if research_trend.get('heating_up') or research_trend.get('cooling_down'):
+            lines.append('RESEARCH / BUILDER TREND WATCH:')
+            if research_trend.get('heating_up'):
+                lines.append('HEATING UP:')
+                for item in research_trend['heating_up'][:3]:
+                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
+            if research_trend.get('cooling_down'):
+                lines.append('COOLING DOWN:')
+                for item in research_trend['cooling_down'][:2]:
+                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
         lines.append('')
     lines.append('HIGHLIGHTS:')
     for idx, article in enumerate(main_articles[:5], start=1):

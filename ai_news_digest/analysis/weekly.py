@@ -106,6 +106,19 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
 
     executive_summary = 'This week was mostly about which AI stories stayed alive long enough to matter, which directions kept building momentum, and which research or builder signals looked early but worth watching.'
 
+    missed_but_emerging = []
+    for item in main_summaries[WEEKLY_HIGHLIGHTS_COUNT: WEEKLY_HIGHLIGHTS_COUNT + 3]:
+        if item['cluster_size'] <= 2:
+            missed_but_emerging.append(
+                {
+                    'headline': item['headline'],
+                    'source': item['source'],
+                    'url': item['url'],
+                    'why_now': 'It is not dominant yet, but it showed enough repeat signal that it may matter next week.',
+                    'eli5': 'ELI5: This is a smaller story that might turn into a bigger one soon.',
+                }
+            )
+
     return {
         'window_days': days,
         'executive_summary': executive_summary,
@@ -114,6 +127,7 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
         'research_focus': focus,
         'thinking_prompts': prompts[:WEEKLY_QUESTIONS_COUNT],
         'research_builder_signals': research_summaries[:4],
+        'missed_but_emerging': missed_but_emerging,
     }
 
 
@@ -150,6 +164,11 @@ def render_weekly_highlights(payload: dict) -> str:
     if payload.get('research_builder_signals'):
         lines.extend(['', 'Research / Builder Signals:'])
         for item in payload['research_builder_signals']:
+            lines.append(f"- {item['headline']} ({item['source']})")
+            lines.append(f"  {item['eli5']}")
+    if payload.get('missed_but_emerging'):
+        lines.extend(['', 'Missed but Emerging:'])
+        for item in payload['missed_but_emerging']:
             lines.append(f"- {item['headline']} ({item['source']})")
             lines.append(f"  {item['eli5']}")
     lines.extend(['', 'Question Prompts:'])

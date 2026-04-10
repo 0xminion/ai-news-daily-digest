@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from ai_news_digest.analysis.clustering import cluster_articles
 from ai_news_digest.analysis.ranking import rank_clustered_articles
-from ai_news_digest.analysis.trends import compute_trend_snapshot
+from ai_news_digest.analysis.trends import compute_trend_snapshot, extract_topics
 from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, logger
 from ai_news_digest.storage.archive import exclude_cross_day_duplicates
 from ai_news_digest.storage.topic_memory import load_topic_memory, save_topic_memory
@@ -27,6 +27,22 @@ def _apply_source_caps(ranked: list[dict], caps: dict[str, int], default_cap: in
             continue
         selected.append(article)
         used[source] += 1
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _apply_research_topic_caps(ranked: list[dict], limit: int = 4) -> list[dict]:
+    selected = []
+    topic_used = defaultdict(int)
+    fallback_bucket = 'Research / Other'
+    for article in ranked:
+        topics = list(extract_topics(article)) or [fallback_bucket]
+        if all(topic_used[topic] >= 1 for topic in topics):
+            continue
+        selected.append(article)
+        for topic in topics:
+            topic_used[topic] += 1
         if len(selected) >= limit:
             break
     return selected
@@ -64,12 +80,13 @@ def fetch_digest_inputs() -> dict:
         default_cap=5,
         limit=MAX_ARTICLES_TO_SUMMARIZE,
     )
-    capped_research = _apply_source_caps(
+    source_capped_research = _apply_source_caps(
         ranked_research,
         caps={'arXiv AI': 2, 'arXiv ML': 1, 'GitHub Blog AI/ML': 1},
         default_cap=2,
-        limit=4,
+        limit=8,
     )
+    capped_research = _apply_research_topic_caps(source_capped_research, limit=4)
 
     save_topic_memory({
         'saved_at': trend_snapshot.get('daily_topic_counts', [{}])[-1].get('date'),
