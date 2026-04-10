@@ -209,12 +209,13 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
                 body_lines.append(_embed_links(_escape(body)))
             if inline_source:
                 source_name, source_url = inline_source
-        rendered_title = f'<b>{_escape(title_line)}</b>'
+        if source_url:
+            rendered_title = f'<b><a href="{source_url}">{_escape(title_line)}</a></b>'
+        else:
+            rendered_title = f'<b>{_escape(title_line)}</b>'
         rendered = [rendered_title]
         rendered.extend(body_lines)
-        if source_name and source_url:
-            rendered.append(f'Source: <a href="{source_url}">{_escape(source_name)}</a>')
-        elif source_name:
+        if source_name:
             rendered.append(f'Source: {_escape(source_name)}')
         rendered_blocks.append('\n'.join(rendered))
     return '\n\n'.join(rendered_blocks)
@@ -232,7 +233,7 @@ def _format_bullets(raw: str) -> str:
             title = _escape(pipe.group('title').strip())
             source = _escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
-            rendered = [f'• {title} — <a href="{url}">{source}</a>']
+            rendered = [f'• <a href="{url}">{title}</a> ({source})']
         else:
             rendered = [f'• {_embed_links(_escape(first))}']
         for extra in lines[1:]:
@@ -248,8 +249,11 @@ def _format_trend_watch(raw: str) -> str:
         if not s:
             continue
         if s in {SECTION_MARKERS['main_news_trend_watch'], SECTION_MARKERS['trend_watch']}:
+            continue
+        elif s == SECTION_MARKERS['cooling_down']:
+            lines.append('')
             lines.append(f'<b>{_escape(s)}</b>')
-        elif s in {SECTION_MARKERS['heating_up'], SECTION_MARKERS['cooling_down']}:
+        elif s in {SECTION_MARKERS['heating_up']}:
             lines.append(f'<b>{_escape(s)}</b>')
         elif s.startswith('-'):
             lines.append(f"• {_escape(s[1:].strip())}")

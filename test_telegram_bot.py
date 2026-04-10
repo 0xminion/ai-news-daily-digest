@@ -89,9 +89,10 @@ class TestSendMessage:
             'Also Worth Knowing:\n- Side item | Side Source (https://example.com/also)'
         )
         messages = _format_digest(summary)
-        # Source name is linked (not title, not raw URL)
-        assert any('Source: <a href="https://example.com">Test Source</a>' in msg for msg in messages)
-        assert any('Side item — <a href="https://example.com/also">Side Source</a>' in msg for msg in messages)
+        # Title is linked, source name is plain text
+        assert any('<b><a href="https://example.com">1. Headline</a></b>' in msg for msg in messages)
+        assert any('Source: Test Source' in msg for msg in messages)
+        assert any('<a href="https://example.com/also">Side item</a> (Side Source)' in msg for msg in messages)
         assert any('Highlights' in msg for msg in messages)
 
 
