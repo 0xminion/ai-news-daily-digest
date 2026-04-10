@@ -177,30 +177,39 @@ def _split_inline_source(line: str) -> tuple[str, tuple[str, str] | None]:
 
 
 def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str:
-    lines = []
-    for line in raw.split('\n'):
-        line = line.strip()
-        if not line:
+    blocks = [block for block in raw.split('\n\n') if block.strip()]
+    rendered_blocks = []
+    for block in blocks:
+        lines_in = [line.strip() for line in block.split('\n') if line.strip()]
+        if not lines_in:
             continue
-        source_match = _source_match(line)
-        if source_match:
-            name = _escape(source_match.group('name').strip())
-            url = source_match.group('url').strip()
-            lines.append(f'Source: <a href="{url}">{name}</a>')
-        elif re.match(r'^\d+\.\s', line):
-            if lines:
-                lines.append('')
-            lines.append(f'<b>{_escape(line)}</b>')
-        elif not include_signal_annotations and ('Hacker News' in line or 'points' in line):
-            continue
-        else:
+        title_line = lines_in[0]
+        body_lines = []
+        source_name = None
+        source_url = None
+        for line in lines_in[1:]:
+            source_match = _source_match(line)
+            if source_match:
+                source_name = source_match.group('name').strip()
+                source_url = source_match.group('url').strip()
+                continue
             body, inline_source = _split_inline_source(line)
             if body:
-                lines.append(_escape(body))
+                if not include_signal_annotations and ('Hacker News' in body or 'points' in body):
+                    continue
+                body_lines.append(_escape(body))
             if inline_source:
-                name, url = inline_source
-                lines.append(f'Source: <a href="{url}">{_escape(name)}</a>')
-    return '\n'.join(lines)
+                source_name, source_url = inline_source
+        if source_url:
+            rendered_title = f'<b><a href="{source_url}">{_escape(title_line)}</a></b>'
+        else:
+            rendered_title = f'<b>{_escape(title_line)}</b>'
+        rendered = [rendered_title]
+        rendered.extend(body_lines)
+        if source_name:
+            rendered.append(f'Source: {_escape(source_name)}')
+        rendered_blocks.append('\n'.join(rendered))
+    return '\n\n'.join(rendered_blocks)
 
 
 def _format_bullets(raw: str) -> str:
@@ -215,7 +224,7 @@ def _format_bullets(raw: str) -> str:
             title = _escape(pipe.group('title').strip())
             source = _escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
-            rendered = [f'• {title} | <a href="{url}">{source}</a>']
+            rendered = [f'• <a href="{url}">{title}</a> ({source})']
         else:
             rendered = [f'• {_escape(first)}']
         for extra in lines[1:]:
