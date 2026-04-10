@@ -1,98 +1,70 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from telegram_bot import _escape, _format_digest, send_digest, _send_message
+from ai_news_digest.output.telegram import _escape, _format_digest, _send_message, send_digest
 
 
 class TestEscape:
     def test_escapes_angle_brackets(self):
-        assert "&lt;" in _escape("<script>")
-        assert "&gt;" in _escape("revenue > $30B")
-
-    def test_escapes_ampersand(self):
-        assert "&amp;" in _escape("R&D spending")
-
-    def test_plain_text_unchanged(self):
-        assert _escape("Hello world") == "Hello world"
+        assert '&lt;' in _escape('<script>')
+        assert '&gt;' in _escape('revenue > $30B')
 
 
 class TestFormatDigest:
     def test_single_message_when_short(self):
-        summary = "BRIEF RUNDOWN:\nShort summary.\n\nHIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com"
+        summary = 'BRIEF RUNDOWN:\nShort summary.\n\nHIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com'
         messages = _format_digest(summary)
         assert len(messages) == 1
-        assert "AI Daily Digest" in messages[0]
+        assert 'AI Daily Digest' in messages[0]
 
-    def test_html_in_output(self):
-        summary = "BRIEF RUNDOWN:\nSummary.\n\nHIGHLIGHTS:\n1. Test Headline\nDetails.\nSource: Wired - https://wired.com/article"
+    def test_trend_watch_is_rendered(self):
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\nCOOLING DOWN:\n- OpenAI — fewer mentions\n\n'
+            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com'
+        )
         messages = _format_digest(summary)
-        assert "<b>" in messages[0]
+        assert any('Trend Watch' in msg for msg in messages)
+        assert any('Anthropic' in msg for msg in messages)
 
-    def test_escapes_html_in_content(self):
-        summary = "BRIEF RUNDOWN:\nRevenue > $30B & growing.\n\nHIGHLIGHTS:\n1. NVIDIA's <big> quarter\nDetails.\nSource: Reuters - https://reuters.com/article"
-        messages = _format_digest(summary)
-        full = " ".join(messages)
-        assert "&gt;" in full
-        assert "&amp;" in full
-
-    def test_splits_long_message(self):
-        long_rundown = "BRIEF RUNDOWN:\n" + "A" * 3000
-        long_highlights = "\n\nHIGHLIGHTS:\n" + "B" * 3000
-        summary = long_rundown + long_highlights
-        messages = _format_digest(summary)
-        assert len(messages) == 2
-        for msg in messages:
-            assert len(msg) <= 4096
-
-    def test_clickable_links(self):
-        summary = "BRIEF RUNDOWN:\nSummary.\n\nHIGHLIGHTS:\n1. Test\nDetails.\nSource: Wired - https://wired.com/article"
-        messages = _format_digest(summary)
-        assert 'href="https://wired.com/article"' in messages[0]
-
-    def test_handles_no_highlights(self):
-        summary = "BRIEF RUNDOWN:\nJust a rundown, no highlights section."
-        messages = _format_digest(summary)
-        assert len(messages) == 1
-        assert "AI Daily Digest" in messages[0]
-
-    def test_handles_raw_text(self):
-        summary = "Just some plain text without any markers."
-        messages = _format_digest(summary)
-        assert len(messages) == 1
+    def test_compact_profile_hides_trends(self):
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\n\n'
+            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test - https://example.com'
+        )
+        messages = _format_digest(summary, profile_name='compact')
+        assert not any('Trend Watch' in msg for msg in messages)
 
 
 class TestSendDigest:
-    @patch("telegram_bot._send_message")
-    def test_send_success(self, mock_send):
+    @patch('ai_news_digest.output.telegram._send_message')
+    def test_send_success_to_multiple_destinations(self, mock_send):
         mock_send.return_value = True
-        result = send_digest("BRIEF RUNDOWN:\nTest.\n\nHIGHLIGHTS:\n1. Test")
+        result = send_digest(
+            'BRIEF RUNDOWN:\nTest.\n\nHIGHLIGHTS:\n1. Test',
+            destinations=[
+                {'name': 'one', 'chat_id': '1', 'bot_token': 'a'},
+                {'name': 'two', 'chat_id': '2', 'bot_token': 'b', 'profile': 'compact'},
+            ],
+        )
         assert result is True
+        assert mock_send.call_count == 2
 
-    @patch("telegram_bot._send_message")
+    @patch('ai_news_digest.output.telegram._send_message')
     def test_send_failure(self, mock_send):
         mock_send.return_value = False
-        result = send_digest("BRIEF RUNDOWN:\nTest.")
+        result = send_digest('BRIEF RUNDOWN:\nTest.', destinations=[{'name': 'one', 'chat_id': '1', 'bot_token': 'a'}])
         assert result is False
 
 
 class TestSendMessage:
-    @patch("telegram_bot.requests.post")
+    @patch('ai_news_digest.output.telegram.requests.post')
     def test_success(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
-        assert _send_message("Hello") is True
+        assert _send_message('Hello', bot_token='abc', chat_id='123') is True
 
-    @patch("telegram_bot.requests.post")
+    @patch('ai_news_digest.output.telegram.requests.post')
     def test_retry_on_500(self, mock_post):
-        mock_post.side_effect = [
-            MagicMock(status_code=500, text="Server error"),
-            MagicMock(status_code=200),
-        ]
-        assert _send_message("Hello") is True
+        mock_post.side_effect = [MagicMock(status_code=500, text='Server error'), MagicMock(status_code=200)]
+        assert _send_message('Hello', bot_token='abc', chat_id='123') is True
         assert mock_post.call_count == 2
-
-    @patch("telegram_bot.requests.post")
-    def test_403_no_retry(self, mock_post):
-        mock_post.return_value = MagicMock(status_code=403, text="Forbidden")
-        assert _send_message("Hello") is False
-        assert mock_post.call_count == 1

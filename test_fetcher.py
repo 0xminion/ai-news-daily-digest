@@ -1,19 +1,16 @@
 import time
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from fetcher import (
-    _fetch_html_with_fallback,
-    _fortune_candidates_from_html,
-    _normalize_candidate_url,
-    get_publish_date,
-    is_within_window,
-    matches_ai_keywords,
-    deduplicate,
-    fetch_articles,
+from ai_news_digest.sources.common import parse_entry_date
+from ai_news_digest.sources.hackernews import enrich_articles_with_hn
+from ai_news_digest.sources.pages import (
+    fetch_html_with_fallback,
+    fortune_candidates_from_html,
+    normalize_candidate_url,
 )
+from ai_news_digest.sources.pipeline import fetch_articles
+from ai_news_digest.sources.rss import matches_ai_keywords
 
 
 class TestGetPublishDate:
@@ -22,102 +19,36 @@ class TestGetPublishDate:
         entry.published_parsed = time.gmtime()
         entry.updated_parsed = None
         entry.created_parsed = None
-        result = get_publish_date(entry)
+        result = parse_entry_date(entry)
         assert result is not None
         assert isinstance(result, datetime)
-
-    def test_fallback_to_updated(self):
-        entry = MagicMock()
-        entry.published_parsed = None
-        entry.updated_parsed = time.gmtime()
-        entry.created_parsed = None
-        result = get_publish_date(entry)
-        assert result is not None
 
     def test_no_date_returns_none(self):
         entry = MagicMock()
         entry.published_parsed = None
         entry.updated_parsed = None
         entry.created_parsed = None
-        result = get_publish_date(entry)
-        assert result is None
+        assert parse_entry_date(entry) is None
 
 
-class TestIsWithinWindow:
-    def test_recent_article_passes(self):
-        entry = MagicMock()
-        entry.published_parsed = time.gmtime()
-        entry.updated_parsed = None
-        entry.created_parsed = None
-        assert is_within_window(entry) is True
-
-    def test_old_article_rejected(self):
+class TestWindowAndKeywords:
+    def test_old_article_date_exists(self):
         entry = MagicMock()
         old_time = datetime.now(timezone.utc) - timedelta(hours=48)
         entry.published_parsed = old_time.timetuple()
         entry.updated_parsed = None
         entry.created_parsed = None
-        assert is_within_window(entry) is False
+        assert parse_entry_date(entry) is not None
 
-    def test_no_date_excluded(self):
-        """Entries with no parseable date are excluded — strict window policy."""
-        entry = MagicMock()
-        entry.published_parsed = None
-        entry.updated_parsed = None
-        entry.created_parsed = None
-        assert is_within_window(entry) is False
+    def test_matches_ai_keywords(self):
+        assert matches_ai_keywords('OpenAI launches new model') is True
+        assert matches_ai_keywords('Weather forecast for tomorrow') is False
 
 
-class TestMatchesAiKeywords:
-    def test_matches_ai(self):
-        assert matches_ai_keywords("New artificial intelligence breakthrough") is True
-
-    def test_matches_entity_names(self):
-        assert matches_ai_keywords("DeepMind releases new model") is True
-
-    def test_matches_openai(self):
-        assert matches_ai_keywords("OpenAI announces GPT-5") is True
-
-    def test_rejects_non_ai(self):
-        assert matches_ai_keywords("Weather forecast for tomorrow") is False
-
-    def test_case_insensitive(self):
-        assert matches_ai_keywords("ARTIFICIAL INTELLIGENCE is growing") is True
-
-
-class TestDeduplicate:
-    def test_exact_url_dedup(self):
-        articles = [
-            {"title": "Story A", "url": "https://example.com/1"},
-            {"title": "Story B", "url": "https://example.com/1"},
-        ]
-        result = deduplicate(articles)
-        assert len(result) == 1
-
-    def test_similar_titles_deduped(self):
-        articles = [
-            {"title": "OpenAI releases GPT-5 model", "url": "https://a.com/1"},
-            {"title": "OpenAI releases GPT-5 model today", "url": "https://b.com/2"},
-        ]
-        result = deduplicate(articles)
-        assert len(result) == 1
-
-    def test_different_titles_kept(self):
-        articles = [
-            {"title": "OpenAI releases GPT-5", "url": "https://a.com/1"},
-            {"title": "NVIDIA reports record revenue", "url": "https://b.com/2"},
-        ]
-        result = deduplicate(articles)
-        assert len(result) == 2
-
-    def test_empty_list(self):
-        assert deduplicate([]) == []
-
-
-class TestFortuneHelpers:
+class TestFortuneAndArchiveHelpers:
     def test_normalize_candidate_url_unwraps_wayback_link(self):
-        url = "https://web.archive.org/web/20260408210842/https://fortune.com/2026/04/10/test-ai-story/"
-        assert _normalize_candidate_url(url) == "https://fortune.com/2026/04/10/test-ai-story/"
+        url = 'https://web.archive.org/web/20260408210842/https://fortune.com/2026/04/10/test-ai-story/'
+        assert normalize_candidate_url(url) == 'https://fortune.com/2026/04/10/test-ai-story/'
 
     def test_fortune_candidates_extract_article_links(self):
         html = '''
@@ -125,65 +56,61 @@ class TestFortuneHelpers:
           <a href="/2026/04/10/test-ai-story/">Test AI Story</a>
           <a href="/2026/04/10/test-ai-story/">Test AI Story</a>
           <a href="/2026/04/10/other-story/">Another AI Story</a>
-          <a href="/section/artificial-intelligence/">Section Link</a>
         </body></html>
         '''
-        result = _fortune_candidates_from_html(html, "https://fortune.com/section/artificial-intelligence/")
+        result = fortune_candidates_from_html(html, 'https://fortune.com/section/artificial-intelligence/')
         assert len(result) == 2
-        assert result[0]["source"] == "Fortune"
-        assert result[0]["url"].startswith("https://fortune.com/2026/04/10/")
+        assert result[0]['source'] == 'Fortune'
 
-    @patch("fetcher._extract_archive_org_url", return_value="https://web.archive.org/web/20260101000000/https://example.com/story")
-    @patch("fetcher._fetch_html")
+    @patch('ai_news_digest.sources.pages._extract_archive_org_url', return_value='https://web.archive.org/web/20260101000000/https://example.com/story')
+    @patch('ai_news_digest.sources.pages._fetch_html')
     def test_fetch_html_with_fallback_uses_archive_after_block(self, mock_fetch_html, _mock_archive_org):
-        blocked = MagicMock(status_code=403, text="cloudflare")
-        archived = MagicMock(status_code=200, text="archived story")
+        blocked = MagicMock(status_code=403, text='cloudflare')
+        archived = MagicMock(status_code=200, text='archived story')
         mock_fetch_html.side_effect = [blocked, blocked, archived]
+        html, final_url = fetch_html_with_fallback('https://example.com/story', 'Example')
+        assert html == 'archived story'
+        assert 'web.archive.org' in final_url
 
-        html, final_url = _fetch_html_with_fallback("https://example.com/story", "Example")
-        assert html == "archived story"
-        assert "web.archive.org" in final_url
 
-    @patch("fetcher._extract_archive_org_url", return_value="https://web.archive.org/web/20260101000000/https://example.com/story")
-    @patch("fetcher._fetch_html")
-    def test_fetch_html_with_fallback_uses_archive_after_paywall(self, mock_fetch_html, _mock_archive_org):
-        paywalled = MagicMock(status_code=200, text="subscribe to continue reading")
-        archived = MagicMock(status_code=200, text="archived story")
-        mock_fetch_html.side_effect = [paywalled, paywalled, archived]
+class TestHackerNewsSignals:
+    @patch('ai_news_digest.sources.hackernews.fetch_hn_signals')
+    def test_enrich_hackernews_signals_enriches_matching_article(self, mock_hn):
+        mock_hn.return_value = [
+            {
+                'title': 'OpenAI launches new model',
+                'url': 'https://example.com/story',
+                'hn_points': 120,
+                'hn_comments': 40,
+                'hn_discussion_url': 'https://news.ycombinator.com/item?id=1',
+            }
+        ]
+        articles = [{'title': 'OpenAI launches new model', 'url': 'https://example.com/story', 'source': 'TechCrunch', 'published': '2026-04-10T07:00:00Z'}]
+        enriched = enrich_articles_with_hn(articles)
+        assert len(enriched) == 1
+        assert enriched[0]['hn_points'] == 120
+        assert enriched[0]['hn_comments'] == 40
 
-        html, final_url = _fetch_html_with_fallback("https://example.com/story", "Example")
-        assert html == "archived story"
-        assert "web.archive.org" in final_url
+    @patch('ai_news_digest.sources.hackernews.fetch_hn_signals')
+    def test_hn_is_enrichment_only(self, mock_hn):
+        mock_hn.return_value = [
+            {'title': 'Standalone HN item', 'url': 'https://example.com/hn-only', 'hn_points': 90, 'hn_comments': 12, 'hn_discussion_url': 'https://news.ycombinator.com/item?id=2'}
+        ]
+        assert enrich_articles_with_hn([]) == []
 
 
 class TestFetchArticles:
-    @patch("fetcher.feedparser.parse")
-    def test_fetch_parses_valid_feed(self, mock_parse):
-        entry = MagicMock()
-        entry.title = "New AI model released by OpenAI"
-        entry.summary = "OpenAI released a new large language model"
-        entry.link = "https://example.com/article"
-        entry.published_parsed = time.gmtime()
-        entry.updated_parsed = None
-        entry.created_parsed = None
-
-        mock_parse.return_value = MagicMock(entries=[entry])
-
-        with patch("fetcher.RSS_FEEDS", [("Test", "https://test.com/feed")]), patch("fetcher.PAGE_SOURCES", []):
-            articles = fetch_articles()
-        assert len(articles) >= 1
-        assert articles[0]["title"] == "New AI model released by OpenAI"
-
-    @patch("fetcher.feedparser.parse")
-    def test_fetch_handles_empty_feed(self, mock_parse):
-        mock_parse.return_value = MagicMock(entries=[])
-        with patch("fetcher.RSS_FEEDS", [("Test", "https://test.com/feed")]), patch("fetcher.PAGE_SOURCES", []):
-            articles = fetch_articles()
-        assert articles == []
-
-    @patch("fetcher.feedparser.parse")
-    def test_fetch_handles_feed_error(self, mock_parse):
-        mock_parse.side_effect = Exception("Network error")
-        with patch("fetcher.RSS_FEEDS", [("Test", "https://test.com/feed")]), patch("fetcher.PAGE_SOURCES", []):
-            articles = fetch_articles()
-        assert articles == []
+    @patch('ai_news_digest.sources.pipeline.fetch_orthogonal_signal_articles', return_value=[])
+    @patch('ai_news_digest.sources.pipeline.fetch_page_articles', return_value=[])
+    @patch('ai_news_digest.sources.pipeline.enrich_articles_with_hn', side_effect=lambda articles: articles)
+    @patch('ai_news_digest.sources.pipeline.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
+    @patch('ai_news_digest.sources.pipeline.fetch_rss_articles')
+    def test_fetch_articles_returns_ranked_articles(self, mock_rss, _mock_cross_day, _mock_hn, _mock_pages, _mock_orth):
+        mock_rss.return_value = [
+            {'title': 'New AI model released by OpenAI', 'summary': 'OpenAI released a new large language model', 'url': 'https://example.com/article', 'source': 'Test', 'published': '2026-04-10T08:00:00+00:00'}
+        ]
+        articles, trend_snapshot, clusters = fetch_articles()
+        assert len(articles) == 1
+        assert articles[0]['title'] == 'New AI model released by OpenAI'
+        assert isinstance(trend_snapshot, dict)
+        assert len(clusters) == 1

@@ -1,6 +1,6 @@
 # AI News Daily Digest
 
-A Python-powered Telegram bot that delivers a curated daily digest of the top AI news from reputable sources — summarized locally using [Ollama](https://ollama.com), zero API costs.
+A Python-powered Telegram bot that delivers a curated AI news digest with source clustering, signal-weighted ranking, cross-day deduplication, destination-specific output profiles, and room for future follow-builders integration.
 
 **What you get every morning:**
 
@@ -24,12 +24,13 @@ RSS + page sources  →  Keyword Filter  →  Dedup  →  Configurable LLM  → 
                         + entity names         similarity + rank
 ```
 
-1. **Fetch** — Pulls articles from 7 RSS feeds plus Fortune's AI section page
+1. **Fetch** — Pulls articles from RSS, page sources, and orthogonal signal feeds (arXiv, GitHub Blog AI/ML). Hacker News is enrichment-only and never appears as a standalone source.
 2. **Fallback** — If a source returns 404, Cloudflare, or subscription-style blocking, retries with cloudscraper and then checks archived copies via the Wayback Machine / archive.ph
-3. **Filter** — Keyword matching for AI relevance (general terms + entity names like OpenAI, DeepMind, NVIDIA, etc.)
-4. **Dedup** — Removes duplicates by URL and title similarity (rapidfuzz, threshold ≥ 0.90)
-5. **Summarize** — Sends top 20 articles to a configurable LLM provider/model (explicit env override or inherited agent primary provider/model)
-6. **Deliver + Save** — Formats as Telegram HTML, sends to your chat/group, and archives a daily copy locally with 30-day retention
+3. **Cluster + Dedup** — Groups same-day coverage into canonical story clusters and removes cross-day repeats against recent archives
+4. **Rank** — Scores stories by recency, source trust, source breadth, HN technical attention, and topic momentum
+5. **Trend Watch** — Uses persistent topic memory and archived daily payloads to identify what is heating up or cooling down
+6. **Summarize** — Sends the ranked digest set to a configurable LLM provider/model with trend context and signal metadata
+7. **Deliver + Save** — Renders destination-specific Telegram output profiles, saves daily artifacts, and preserves room for weekly highlights and follow-builders v2 integration
 
 ## Quick Start
 
@@ -64,11 +65,15 @@ chmod 600 .env
 ### Run
 
 ```bash
-# Dry run — see the output without Telegram
-python dry_run.py
-
-# Full run — fetches, summarizes, sends to Telegram
+# Full run — fetches, clusters, ranks, summarizes, sends to Telegram
 python main.py
+
+# Weekly sample render from archived daily payloads
+python - <<'PY'
+from ai_news_digest.app import build_weekly_sample
+payload, text = build_weekly_sample()
+print(text)
+PY
 ```
 
 ### Schedule with hermes-agent
@@ -98,9 +103,16 @@ All config via environment variables (`.env` file):
 | `OPENAI_API_KEY` | No | — | Required when `LLM_PROVIDER=openai` |
 | `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
 | `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
+| `TELEGRAM_CHAT_ID` | No* | — | Single destination chat ID; can be comma-separated |
+| `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with optional per-destination bot tokens |
 | `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Legacy Ollama model fallback |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
 | `RETENTION_DAYS` | No | `30` | Local daily report retention window |
+| `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
+| `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |
+| `HN_ENABLED` | No | `true` | Enable Hacker News signal enrichment |
+| `HN_MIN_POINTS` | No | `15` | Minimum HN points for a story signal |
+| `HN_MIN_COMMENTS` | No | `5` | Minimum HN comments for a story signal |
 | `DATA_DIR` | No | `./data` | Base directory for archived digest copies |
 | `DELIVERY_HOUR` | No | `7` | Hour to deliver (24h format) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
@@ -115,27 +127,50 @@ All config via environment variables (`.env` file):
 ## Project Structure
 
 ```
-├── main.py              # Entry point — fetch → summarize → deliver
-├── fetcher.py           # RSS fetching, keyword filtering, deduplication
-├── summarizer.py        # Ollama API, prompt template, model swappability
-├── telegram_bot.py      # HTML formatting, message splitting, Telegram API
-├── storage.py           # Daily digest archive + retention pruning
-├── config.py            # Configuration, env vars, source/keyword lists
-├── dry_run.py           # Test run without Telegram
-├── requirements.txt     # Python dependencies
-├── .env.example         # Environment variable template
-├── test_fetcher.py      # 18 unit tests
-├── test_summarizer.py   # 7 unit tests
-├── test_telegram_bot.py # 15 unit tests
-└── test_config.py       # 2 unit tests
+ai_news_digest/
+├── app.py                          # Daily + weekly orchestration
+├── config/
+│   ├── settings.py                # Env loading, runtime settings, destination profiles
+│   └── catalog.py                 # Sources, keywords, trend topics, trust weights
+├── sources/
+│   ├── pipeline.py                # End-to-end fetch / cluster / rank pipeline
+│   ├── rss.py                     # RSS ingestion
+│   ├── pages.py                   # Page scraping + archive fallback
+│   ├── hackernews.py              # HN enrichment-only signals
+│   └── orthogonal.py              # arXiv / GitHub Blog signal layers
+├── analysis/
+│   ├── clustering.py              # Canonical story clustering
+│   ├── ranking.py                 # Signal-weighted ranking
+│   ├── trends.py                  # Heating / cooling topic tracking
+│   └── weekly.py                  # Weekly highlights synthesis scaffolding
+├── storage/
+│   ├── archive.py                 # Daily/weekly artifacts, cross-day dedup, retention
+│   └── topic_memory.py            # Persistent topic/entity memory + integration state
+├── llm/
+│   └── service.py                 # Provider routing + prompt assembly
+├── output/
+│   └── telegram.py                # Destination-specific Telegram rendering
+└── integrations/
+    └── follow_builders/
+        └── adapter.py             # v2 integration seam for remote builder feeds
+
+main.py                             # Thin daily entrypoint wrapper
+config.py                           # Compatibility shim
+fetcher.py                          # Compatibility shim
+storage.py                          # Compatibility shim
+summarizer.py                       # Compatibility shim
+telegram_bot.py                     # Compatibility shim
+examples/
+├── sample-daily-digest.md
+└── sample-weekly-highlights.md
 ```
 
 ## Tests
 
 ```bash
 pip install pytest
-python -m pytest -v
-# 42 tests, all passing
+python -m pytest -q
+# 32 tests, all passing
 ```
 
 ## Model Swappability
@@ -156,12 +191,18 @@ The summarizer is designed to be model-agnostic. All LLM calls go through `summa
 
 ## Roadmap (v2)
 
-- [ ] Trend tracking across days (what's heating up vs cooling down)
-- [ ] Opinionated "hot take" section
-- [ ] Multi-chat support (multiple Telegram groups)
-- [ ] Cross-day deduplication
+- [x] Trend tracking across days (what's heating up vs cooling down)
+- [x] Multi-chat support (multiple Telegram groups)
+- [x] Cross-day deduplication
 - [x] Full-text fallback scraping for Fortune AI section and blocked pages
-- [ ] HN/Reddit as additional source signals
+- [x] Hacker News as an additional source signal (enrichment-only)
+- [x] Signal-weighted ranking
+- [x] Canonical story clustering
+- [x] Persistent topic/entity memory
+- [x] Destination-specific output profiles
+- [x] Orthogonal signal layers (arXiv + GitHub Blog AI/ML)
+- [ ] Weekly highlights full production CLI
+- [ ] follow-builders deep integration
 
 ## License
 
