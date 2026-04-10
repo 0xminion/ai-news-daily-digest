@@ -29,7 +29,7 @@ def main():
 
     # Step 2: Summarize
     print(f"\n{'=' * 60}")
-    print("[2/3] Generating summary with Ollama (minimax-m2.7:cloud)...\n")
+    print("[2/3] Generating summary with configured LLM provider/model...\n")
     summary = summarize(articles)
 
     print("--- RAW LLM OUTPUT ---")

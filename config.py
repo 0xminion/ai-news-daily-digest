@@ -1,14 +1,31 @@
-import os
 import logging
+import os
+from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Ollama
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud")
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
+REPORT_ARCHIVE_DIR = DATA_DIR / "daily_reports"
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "30"))
+
+# Legacy Ollama settings remain supported
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_TIMEOUT = 120  # seconds
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud")
+
+# Generic LLM settings. Explicit LLM_* wins. Otherwise inherit agent defaults.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER") or os.getenv("AGENT_PRIMARY_PROVIDER")
+LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("AGENT_PRIMARY_MODEL") or OLLAMA_MODEL
+LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
+LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", str(OLLAMA_TIMEOUT)))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1800"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -33,30 +50,70 @@ RSS_FEEDS = [
     ("The Verge", "https://www.theverge.com/rss/index.xml"),
     ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
     ("MIT Technology Review", "https://www.technologyreview.com/feed/"),
-    ("Reuters", "https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com%2Ftechnology%2F&filter=&filter_type=permit&format=Atom"),
+    (
+        "Reuters",
+        "https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com%2Ftechnology%2F&filter=&filter_type=permit&format=Atom",
+    ),
     ("VentureBeat", "https://venturebeat.com/feed/"),
+]
+
+# Non-RSS page sources that need custom extraction
+PAGE_SOURCES = [
+    {
+        "name": "Fortune",
+        "url": "https://fortune.com/section/artificial-intelligence/",
+        "extractor": "fortune_ai",
+    },
 ]
 
 # Keywords for AI relevance filtering
 AI_KEYWORDS = [
-    # General terms
     "artificial intelligence", "ai ", " ai,", " ai.", "machine learning",
     "deep learning", "neural network", "large language model", "llm",
     "generative ai", "gen ai", "chatbot", "natural language processing",
     "computer vision", "reinforcement learning", "transformer model",
-    # Specific technologies
     "gpt", "chatgpt", "copilot", "midjourney", "stable diffusion",
-    "diffusion model",
-    # Company/entity names
-    "openai", "anthropic", "deepmind", "google ai", "meta ai",
-    "nvidia", "hugging face", "huggingface", "mistral ai", "mistral",
-    "cohere", "inflection", "perplexity", "claude", "gemini",
+    "diffusion model", "openai", "anthropic", "deepmind", "google ai",
+    "meta ai", "nvidia", "hugging face", "huggingface", "mistral ai",
+    "mistral", "cohere", "inflection", "perplexity", "claude", "gemini",
     "llama", "groq", "xai", "grok",
 ]
 
 MAX_ARTICLES_TO_SUMMARIZE = 20
-RSS_WINDOW_HOURS = 24  # strictly past 24 hours only; no buffer — older articles are excluded rather than window extended
-USER_AGENT = "AI-News-Digest/1.0 (RSS Reader)"
+RSS_WINDOW_HOURS = 24
+USER_AGENT = os.getenv(
+    "USER_AGENT",
+    "Mozilla/5.0 (compatible; AI-News-Digest/1.1; +https://github.com/0xminion/ai-news-daily-digest)",
+)
+CONTENT_FETCH_TIMEOUT = int(os.getenv("CONTENT_FETCH_TIMEOUT", "30"))
+MIN_ARTICLE_TEXT_LENGTH = int(os.getenv("MIN_ARTICLE_TEXT_LENGTH", "300"))
+FULL_CONTENT_FETCH_LIMIT = int(os.getenv("FULL_CONTENT_FETCH_LIMIT", "8"))
+
+
+def get_llm_settings() -> dict:
+    provider = (LLM_PROVIDER or "").strip().lower()
+    model = (LLM_MODEL or "").strip()
+
+    if not provider and "/" in model:
+        possible_provider, possible_model = model.split("/", 1)
+        if possible_provider.lower() in {"ollama", "openai", "openrouter", "anthropic"}:
+            provider = possible_provider.lower()
+            model = possible_model
+
+    provider = provider or "ollama"
+    model = model or OLLAMA_MODEL
+
+    return {
+        "provider": provider,
+        "model": model,
+        "api_base": LLM_API_BASE,
+        "timeout": LLM_TIMEOUT,
+        "max_tokens": LLM_MAX_TOKENS,
+        "openai_api_key": OPENAI_API_KEY,
+        "openrouter_api_key": OPENROUTER_API_KEY,
+        "anthropic_api_key": ANTHROPIC_API_KEY,
+        "ollama_host": OLLAMA_HOST,
+    }
 
 
 def validate_config():
@@ -72,16 +129,32 @@ def validate_config():
             f"Copy .env.example to .env and fill in the values."
         )
 
-    # Warn on feeds that fail basic URL validation
-    from urllib.parse import urlparse
-    for name, url in RSS_FEEDS:
-        try:
-            parsed = urlparse(url)
-            if not parsed.scheme or not parsed.netloc:
-                logger.warning(
-                    "RSS feed '%s' has invalid URL '%s' — skipping at startup. "
-                    "Fix the URL in RSS_FEEDS (config.py).",
-                    name, url,
-                )
-        except Exception as e:
-            logger.warning("RSS feed '%s' raised %s: %s — skipping at startup.", name, type(e).__name__, e)
+    llm = get_llm_settings()
+    provider = llm["provider"]
+    provider_keys = {
+        "openai": ("OPENAI_API_KEY", OPENAI_API_KEY),
+        "openrouter": ("OPENROUTER_API_KEY", OPENROUTER_API_KEY),
+        "anthropic": ("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
+    }
+    if provider in provider_keys:
+        key_name, key_value = provider_keys[provider]
+        if not key_value:
+            raise ValueError(
+                f"LLM provider '{provider}' requires {key_name} to be set."
+            )
+
+    for collection_name, feeds in (("RSS_FEEDS", RSS_FEEDS), ("PAGE_SOURCES", [(item["name"], item["url"]) for item in PAGE_SOURCES])):
+        for name, url in feeds:
+            try:
+                parsed = urlparse(url)
+                if not parsed.scheme or not parsed.netloc:
+                    logger.warning(
+                        "%s entry '%s' has invalid URL '%s' — skipping at runtime.",
+                        collection_name,
+                        name,
+                        url,
+                    )
+            except Exception as e:
+                logger.warning("%s entry '%s' raised %s: %s — skipping at runtime.", collection_name, name, type(e).__name__, e)
+
+    REPORT_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)

@@ -19,16 +19,17 @@ A Python-powered Telegram bot that delivers a curated daily digest of the top AI
 ## How It Works
 
 ```
-RSS Feeds (7 sources)  →  Keyword Filter  →  Dedup  →  Ollama  →  Telegram
-     ~2s                    AI/ML terms       title     summarize    send
-                            + entity names    similarity + rank
+RSS + page sources  →  Keyword Filter  →  Dedup  →  Configurable LLM  →  Telegram + archive
+      ~2-10s            AI/ML terms            title      summarize        send + save copy
+                        + entity names         similarity + rank
 ```
 
-1. **Fetch** — Pulls articles from 7 RSS feeds (Wired, TechCrunch, The Verge, Ars Technica, MIT Technology Review, Reuters, VentureBeat)
-2. **Filter** — Keyword matching for AI relevance (general terms + entity names like OpenAI, DeepMind, NVIDIA, etc.)
-3. **Dedup** — Removes duplicates by URL and title similarity (rapidfuzz, threshold ≥ 0.90)
-4. **Summarize** — Sends top 20 articles to Ollama for a structured digest: brief rundown + 10 highlights + additional links
-5. **Deliver** — Formats as Telegram HTML and sends to your chat/group
+1. **Fetch** — Pulls articles from 7 RSS feeds plus Fortune's AI section page
+2. **Fallback** — If a source returns 404, Cloudflare, or subscription-style blocking, retries with cloudscraper and then checks archived copies via the Wayback Machine / archive.ph
+3. **Filter** — Keyword matching for AI relevance (general terms + entity names like OpenAI, DeepMind, NVIDIA, etc.)
+4. **Dedup** — Removes duplicates by URL and title similarity (rapidfuzz, threshold ≥ 0.90)
+5. **Summarize** — Sends top 20 articles to a configurable LLM provider/model (explicit env override or inherited agent primary provider/model)
+6. **Deliver + Save** — Formats as Telegram HTML, sends to your chat/group, and archives a daily copy locally with 30-day retention
 
 ## Quick Start
 
@@ -91,8 +92,16 @@ All config via environment variables (`.env` file):
 |----------|----------|---------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | Yes | — | Target chat/group ID |
-| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Ollama model name |
+| `LLM_PROVIDER` | No | `ollama` | LLM provider: `ollama`, `openai`, `openrouter`, or `anthropic` |
+| `LLM_MODEL` | No | inherited or `minimax-m2.7:cloud` | Model name; inherits agent primary model if available |
+| `LLM_API_BASE` | No | provider default | Optional custom API base |
+| `OPENAI_API_KEY` | No | — | Required when `LLM_PROVIDER=openai` |
+| `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
+| `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
+| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Legacy Ollama model fallback |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
+| `RETENTION_DAYS` | No | `30` | Local daily report retention window |
+| `DATA_DIR` | No | `./data` | Base directory for archived digest copies |
 | `DELIVERY_HOUR` | No | `7` | Hour to deliver (24h format) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
 
@@ -110,6 +119,7 @@ All config via environment variables (`.env` file):
 ├── fetcher.py           # RSS fetching, keyword filtering, deduplication
 ├── summarizer.py        # Ollama API, prompt template, model swappability
 ├── telegram_bot.py      # HTML formatting, message splitting, Telegram API
+├── storage.py           # Daily digest archive + retention pruning
 ├── config.py            # Configuration, env vars, source/keyword lists
 ├── dry_run.py           # Test run without Telegram
 ├── requirements.txt     # Python dependencies
@@ -150,7 +160,7 @@ The summarizer is designed to be model-agnostic. All LLM calls go through `summa
 - [ ] Opinionated "hot take" section
 - [ ] Multi-chat support (multiple Telegram groups)
 - [ ] Cross-day deduplication
-- [ ] Full-text scraping for summary-only feeds
+- [x] Full-text fallback scraping for Fortune AI section and blocked pages
 - [ ] HN/Reddit as additional source signals
 
 ## License

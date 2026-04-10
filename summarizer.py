@@ -3,9 +3,8 @@ import re
 
 import requests
 
-from config import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, logger
+from config import OLLAMA_TIMEOUT, get_llm_settings, logger
 
-# Patterns indicative of prompt injection attempts in article content
 _INJECTION_PATTERNS = re.compile(
     r"ignore\s+(all\s+)?(previous|prior)\s+instructions"
     r"|disregard\s+(all\s+)?(previous|prior)\s+instructions"
@@ -14,16 +13,6 @@ _INJECTION_PATTERNS = re.compile(
     r"|system\s*prompt\s*leak",
     re.IGNORECASE,
 )
-
-
-def _sanitize_for_prompt(text: str) -> str:
-    """Remove potential prompt injection patterns from article text.
-
-    Articles come from untrusted RSS sources. While JSON serialization
-    prevents structural injection, we strip common injection phrases
-    to reduce risk of the LLM being manipulated.
-    """
-    return _INJECTION_PATTERNS.sub("[redacted]", text)
 
 
 PROMPT_TEMPLATE = """You are an AI news curator. Given the following {n} articles about artificial intelligence, produce a daily digest with two sections:
@@ -67,20 +56,17 @@ Articles:
 {articles_json}"""
 
 
-def summarize(articles: list[dict]) -> str:
-    """Summarize articles using the configured LLM (Ollama).
+def _sanitize_for_prompt(text: str) -> str:
+    return _INJECTION_PATTERNS.sub("[redacted]", text)
 
-    This function is the model swappability boundary — to switch to Claude,
-    GPT, or another provider, change only the implementation here.
-    """
-    if not articles:
-        return _quiet_day_message()
 
+def _build_prompt(articles: list[dict]) -> str:
     articles_json = json.dumps(
         [
             {
                 "title": _sanitize_for_prompt(a["title"]),
-                "summary": _sanitize_for_prompt(a["summary"])[:500],
+                "summary": _sanitize_for_prompt(a.get("summary", ""))[:700],
+                "content": _sanitize_for_prompt(a.get("content", ""))[:1500],
                 "url": a["url"],
                 "source": a["source"],
             }
@@ -88,47 +74,120 @@ def summarize(articles: list[dict]) -> str:
         ],
         indent=2,
     )
+    return PROMPT_TEMPLATE.format(n=len(articles), articles_json=articles_json)
 
-    prompt = PROMPT_TEMPLATE.format(n=len(articles), articles_json=articles_json)
+
+def _ollama_generate(prompt: str, settings: dict) -> str:
+    response = requests.post(
+        f"{settings['ollama_host']}/api/generate",
+        json={"model": settings["model"], "prompt": prompt, "stream": False},
+        timeout=settings["timeout"],
+    )
+    response.raise_for_status()
+    return response.json().get("response", "").strip()
+
+
+def _openai_compatible_generate(prompt: str, settings: dict) -> str:
+    provider = settings["provider"]
+    api_base = settings["api_base"]
+    if not api_base:
+        api_base = {
+            "openai": "https://api.openai.com/v1",
+            "openrouter": "https://openrouter.ai/api/v1",
+        }[provider]
+    api_key = settings[f"{provider}_api_key"]
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if provider == "openrouter":
+        headers["HTTP-Referer"] = "https://github.com/0xminion/ai-news-daily-digest"
+        headers["X-Title"] = "ai-news-daily-digest"
+
+    response = requests.post(
+        f"{api_base}/chat/completions",
+        headers=headers,
+        json={
+            "model": settings["model"],
+            "messages": [
+                {"role": "system", "content": "You create clean, accurate AI news digests."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "max_tokens": settings["max_tokens"],
+        },
+        timeout=settings["timeout"],
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def _anthropic_generate(prompt: str, settings: dict) -> str:
+    response = requests.post(
+        f"{settings['api_base'] or 'https://api.anthropic.com'}/v1/messages",
+        headers={
+            "x-api-key": settings["anthropic_api_key"],
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": settings["model"],
+            "max_tokens": settings["max_tokens"],
+            "temperature": 0.2,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=settings["timeout"],
+    )
+    response.raise_for_status()
+    data = response.json()
+    blocks = data.get("content", [])
+    text_blocks = [block.get("text", "") for block in blocks if block.get("type") == "text"]
+    return "\n".join(part for part in text_blocks if part).strip()
+
+
+def summarize(articles: list[dict]) -> str:
+    """Summarize articles using the configured LLM provider/model."""
+    if not articles:
+        return _quiet_day_message()
+
+    settings = get_llm_settings()
+    prompt = _build_prompt(articles)
+
+    logger.info(
+        "Sending %d articles to %s (%s)...",
+        len(articles),
+        settings["provider"],
+        settings["model"],
+    )
 
     try:
-        logger.info(
-            f"Sending {len(articles)} articles to Ollama ({OLLAMA_MODEL})..."
-        )
-        response = requests.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-            },
-            timeout=OLLAMA_TIMEOUT,
-        )
-        response.raise_for_status()
-        data = response.json()
-        result = data.get("response", "").strip()
+        if settings["provider"] == "ollama":
+            result = _ollama_generate(prompt, settings)
+        elif settings["provider"] in {"openai", "openrouter"}:
+            result = _openai_compatible_generate(prompt, settings)
+        elif settings["provider"] == "anthropic":
+            result = _anthropic_generate(prompt, settings)
+        else:
+            raise ValueError(
+                f"Unsupported LLM provider '{settings['provider']}'. Supported providers: ollama, openai, openrouter, anthropic."
+            )
 
         if not result:
-            logger.error("Ollama returned empty response")
-            raise RuntimeError("Ollama returned empty response")
+            logger.error("LLM provider returned empty response")
+            raise RuntimeError("LLM provider returned empty response")
 
-        logger.info(f"Summary generated ({len(result)} chars)")
+        logger.info("Summary generated (%d chars)", len(result))
         return result
 
     except requests.ConnectionError:
-        logger.error(
-            f"Cannot connect to Ollama at {OLLAMA_HOST}. "
-            f"Is Ollama running? Try: ollama serve"
-        )
+        logger.error("Cannot connect to %s provider endpoint", settings["provider"])
         raise
     except requests.Timeout:
-        logger.error(
-            f"Ollama timed out after {OLLAMA_TIMEOUT}s. "
-            f"The model may be too slow or too many articles were sent."
-        )
+        logger.error("%s timed out after %ss", settings["provider"], settings["timeout"])
         raise
-    except requests.HTTPError as e:
-        logger.error(f"Ollama HTTP error: {e}")
+    except requests.HTTPError as exc:
+        logger.error("%s HTTP error: %s", settings["provider"], exc)
         raise
 
 

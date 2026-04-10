@@ -9,10 +9,11 @@ Usage:
 """
 import sys
 
-from config import validate_config, logger
+from config import get_llm_settings, validate_config, logger
 from fetcher import fetch_articles
 from summarizer import summarize
-from telegram_bot import send_digest
+from storage import prune_old_reports, save_daily_report
+from telegram_bot import _format_digest, send_digest
 
 
 def main() -> int:
@@ -26,26 +27,28 @@ def main() -> int:
         logger.error(str(e))
         return 1
 
-    # Check Ollama reachability (non-fatal, just warn)
-    try:
-        import requests
-        from config import OLLAMA_HOST, USER_AGENT
-        resp = requests.get(
-            f"{OLLAMA_HOST}/api/tags",
-            timeout=5,
-            headers={"User-Agent": USER_AGENT},
-        )
-        if resp.status_code != 200:
-            logger.warning(
-                "Ollama at %s returned status %s — summarization may fail.",
-                OLLAMA_HOST, resp.status_code,
+    # Check Ollama reachability only when Ollama is the active provider.
+    llm = get_llm_settings()
+    if llm["provider"] == "ollama":
+        try:
+            import requests
+            from config import USER_AGENT
+            resp = requests.get(
+                f"{llm['ollama_host']}/api/tags",
+                timeout=5,
+                headers={"User-Agent": USER_AGENT},
             )
-    except Exception as e:
-        logger.warning(
-            "Cannot reach Ollama at %s (%s) — summarization will fail. "
-            "Start Ollama: ollama serve",
-            OLLAMA_HOST, e,
-        )
+            if resp.status_code != 200:
+                logger.warning(
+                    "Ollama at %s returned status %s — summarization may fail.",
+                    llm['ollama_host'], resp.status_code,
+                )
+        except Exception as e:
+            logger.warning(
+                "Cannot reach Ollama at %s (%s) — summarization will fail. "
+                "Start Ollama: ollama serve",
+                llm['ollama_host'], e,
+            )
 
     # Fetch articles
     try:
@@ -61,6 +64,13 @@ def main() -> int:
     except Exception as e:
         logger.error(f"Failed to generate summary: {e}")
         return 1
+
+    # Archive report copy and prune older ones before delivery
+    try:
+        prune_old_reports()
+        save_daily_report(summary, articles, _format_digest(summary))
+    except Exception as e:
+        logger.warning(f"Failed to archive daily report copy: {e}")
 
     # Deliver
     success = send_digest(summary)
