@@ -22,5 +22,8 @@ def test_render_weekly_highlights_includes_confidence_and_subtypes():
     }
     text = render_weekly_highlights(payload)
     assert 'Confidence: High confidence' in text
-    assert '[paper] Paper' in text
-    assert '[builder feed] Small thing' in text
+    assert '[paper]' in text
+    assert '<a href="https://example.com">Headline</a>' in text
+    assert '[builder feed]' in text
+    assert '<b>Highlights of the Week</b>' in text
+    assert '<b>Question Prompts</b>' in text

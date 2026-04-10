@@ -23,7 +23,7 @@ class TestFormatDigest:
             'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)'
         )
         messages = _format_digest(summary)
-        assert any('Trend Watch' in msg for msg in messages)
+        assert any('Heating Up' in msg for msg in messages)
         assert any('Anthropic' in msg for msg in messages)
 
     def test_compact_profile_hides_trends(self):
@@ -33,7 +33,7 @@ class TestFormatDigest:
             'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)'
         )
         messages = _format_digest(summary, profile_name='compact')
-        assert not any('Trend Watch' in msg for msg in messages)
+        assert not any('Heating Up' in msg for msg in messages)
 
 
 class TestSendDigest:

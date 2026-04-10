@@ -277,7 +277,7 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
 
     parts = [header + rundown]
     if trend_watch:
-        parts.append(f'<b>Trend Watch</b>\n{trend_watch}')
+        parts.append(trend_watch)
     if highlights:
         parts.append(f'<b>Highlights</b>\n\n{highlights}')
     if also:

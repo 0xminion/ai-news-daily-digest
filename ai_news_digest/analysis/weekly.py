@@ -179,33 +179,86 @@ def build_weekly_preview(payload: dict) -> str:
 
 
 def render_weekly_highlights(payload: dict) -> str:
-    lines = ['AI Weekly Highlights', '']
+    from datetime import datetime
+    import html as html_mod
+    from ai_news_digest.output.telegram import _embed_links
+
+    def _esc(text: str) -> str:
+        return html_mod.escape(html_mod.unescape(str(text)))
+
+    today = datetime.now().strftime('%B %d, %Y')
+    lines = [f'<b>AI Weekly Highlights — {_esc(today)}</b>', '']
+
     if payload.get('executive_summary'):
-        lines.extend(['Executive Summary:', payload['executive_summary'], ''])
-    lines.append('Highlights of the Week:')
+        lines.append(f'<b>Executive Summary</b>')
+        lines.append(_esc(payload['executive_summary']))
+        lines.append('')
+
+    lines.append('<b>Highlights of the Week</b>')
     for idx, item in enumerate(payload.get('highlights_of_the_week', []), start=1):
-        lines.append(f"{idx}. {item['headline']}")
-        lines.append(f"   Confidence: {item.get('confidence', 'n/a')}")
-        lines.append(f"   {item['why_it_matters']}")
-        lines.append(f"   Source: {item['source']} ({item['url']})")
-    lines.extend(['', 'Trending and Directions:'])
+        headline = _esc(item['headline'])
+        url = item.get('url', '')
+        if url:
+            lines.append(f'{idx}. <b><a href="{url}">{headline}</a></b>')
+        else:
+            lines.append(f'{idx}. <b>{headline}</b>')
+        lines.append(f"Confidence: {_esc(item.get('confidence', 'n/a'))}")
+        lines.append(_embed_links(_esc(item.get('why_it_matters', ''))))
+        lines.append(f"Source: {_esc(item.get('source', ''))}")
+        lines.append('')
+
+    lines.append('<b>Trending and Directions</b>')
     for item in payload.get('trending_directions', []):
-        lines.append(f"- {item['topic']} — {item['direction']} [{item.get('confidence', 'n/a')}] ({item['note']})")
-    lines.extend(['', 'Areas of Focus to Research:'])
+        topic = _esc(item['topic'])
+        direction = _esc(item['direction'])
+        confidence = _esc(item.get('confidence', 'n/a'))
+        note = _esc(item.get('note', ''))
+        lines.append(f"• {topic} — {direction} [{confidence}] {_embed_links(note)}")
+    lines.append('')
+
+    lines.append('<b>Areas of Focus to Research</b>')
     for item in payload.get('research_focus', []):
-        lines.append(f"- {item['topic']} [{item.get('confidence', 'n/a')}]: {item['why_now']}")
-        lines.append(f"  Watch: {item['what_to_watch']}")
+        topic = _esc(item['topic'])
+        confidence = _esc(item.get('confidence', 'n/a'))
+        why_now = _esc(item.get('why_now', ''))
+        what_to_watch = _esc(item.get('what_to_watch', ''))
+        lines.append(f"• {topic} [{confidence}]: {why_now}")
+        lines.append(f"  Watch: {_embed_links(what_to_watch)}")
+    lines.append('')
+
     if payload.get('research_builder_signals'):
-        lines.extend(['', 'Research / Builder Signals:'])
+        lines.append('<b>Research / Builder Signals</b>')
         for item in payload['research_builder_signals']:
-            lines.append(f"- [{item.get('subtype', 'signal')}] {item['headline']} ({item['source']})")
-            lines.append(f"  Confidence: {item.get('confidence', 'n/a')}")
+            subtype = _esc(item.get('subtype', 'signal'))
+            headline = _esc(item['headline'])
+            url = item.get('url', '')
+            source = _esc(item.get('source', ''))
+            confidence = _esc(item.get('confidence', 'n/a'))
+            if url:
+                lines.append(f"• [{subtype}] <a href=\"{url}\">{headline}</a> ({source})")
+            else:
+                lines.append(f"• [{subtype}] {headline} ({source})")
+            lines.append(f"  Confidence: {confidence}")
+        lines.append('')
+
     if payload.get('missed_but_emerging'):
-        lines.extend(['', 'Missed but Emerging:'])
+        lines.append('<b>Missed but Emerging</b>')
         for item in payload['missed_but_emerging']:
-            lines.append(f"- [{item.get('subtype', 'signal')}] {item['headline']} ({item['source']})")
-            lines.append(f"  Confidence: {item.get('confidence', 'n/a')}")
-    lines.extend(['', 'Question Prompts:'])
-    for q in payload.get('thinking_prompts', []):
-        lines.append(f"- {q}")
+            subtype = _esc(item.get('subtype', 'signal'))
+            headline = _esc(item['headline'])
+            url = item.get('url', '')
+            source = _esc(item.get('source', ''))
+            confidence = _esc(item.get('confidence', 'n/a'))
+            if url:
+                lines.append(f"• [{subtype}] <a href=\"{url}\">{headline}</a> ({source})")
+            else:
+                lines.append(f"• [{subtype}] {headline} ({source})")
+            lines.append(f"  Confidence: {confidence}")
+        lines.append('')
+
+    if payload.get('thinking_prompts'):
+        lines.append('<b>Question Prompts</b>')
+        for q in payload['thinking_prompts']:
+            lines.append(f"• {_esc(q)}")
+
     return '\n'.join(lines)
