@@ -19,18 +19,30 @@ A Python-powered Telegram bot that delivers a curated AI news digest with source
 ## How It Works
 
 ```
-RSS + page sources  →  Keyword Filter  →  Dedup  →  Configurable LLM  →  Telegram + archive
+RSS + curated signal sources  →  Keyword Filter  →  Dedup  →  Configurable LLM  →  Telegram + archive
       ~2-10s            AI/ML terms            title      summarize        send + save copy
                         + entity names         similarity + rank
 ```
 
-1. **Fetch** — Pulls articles from RSS, page sources, and orthogonal signal feeds (arXiv, GitHub Blog AI/ML). Hacker News is enrichment-only and never appears as a standalone source.
-2. **Fallback** — If a source returns 404, Cloudflare, or subscription-style blocking, retries with cloudscraper and then checks archived copies via the Wayback Machine / archive.ph
+1. **Fetch** — Pulls articles from RSS and orthogonal signal feeds (arXiv, GitHub Blog AI/ML). Hacker News is enrichment-only and never appears as a standalone source.
 3. **Cluster + Dedup** — Groups same-day coverage into canonical story clusters and removes cross-day repeats against recent archives
 4. **Rank** — Scores stories by recency, source trust, source breadth, HN technical attention, and topic momentum
 5. **Trend Watch** — Uses persistent topic memory and archived daily payloads to identify what is heating up or cooling down
 6. **Summarize** — Sends the ranked digest set to a configurable LLM provider/model with trend context and signal metadata
 7. **Deliver + Save** — Renders destination-specific Telegram output profiles, saves daily artifacts, and preserves room for weekly highlights and follow-builders v2 integration
+
+
+## Output format
+
+Telegram output is rendered with normal title-case section headings, not all-caps blocks.
+
+Links are embedded on the source name in Telegram HTML output, for example:
+
+- Highlights: `Source: <clickable source name>`
+- Also Worth Knowing: `Headline | <clickable source name>`
+- Research / Builder Signals: `Headline | <clickable source name>`
+
+The raw LLM summary is plain text, but the Telegram renderer converts those source references into clickable links before sending.
 
 ## Quick Start
 
@@ -44,8 +56,8 @@ RSS + page sources  →  Keyword Filter  →  Dedup  →  Configurable LLM  → 
 
 ```bash
 # Clone
-git clone https://github.com/0xminion/test.git
-cd test
+git clone https://github.com/0xminion/ai-news-daily-digest.git
+cd ai-news-daily-digest
 
 # Install dependencies
 python3 -m venv .venv
@@ -174,12 +186,12 @@ examples/
 ```bash
 pip install pytest
 python -m pytest -q
-# 32 tests, all passing
+# 36 tests, all passing
 ```
 
 ## Model Swappability
 
-The summarizer is designed to be model-agnostic. All LLM calls go through `summarize(articles) -> str` in `summarizer.py`. To switch from Ollama to Claude, GPT, or any other provider, change only that function's implementation — everything else stays the same.
+The summarizer is designed to be model-agnostic. All LLM calls go through `summarize(...) -> str` in `ai_news_digest/llm/service.py`. To switch from Ollama to Claude, GPT, or any other provider, change only that function's implementation — everything else stays the same.
 
 ## Error Handling
 
@@ -198,7 +210,6 @@ The summarizer is designed to be model-agnostic. All LLM calls go through `summa
 - [x] Trend tracking across days (what's heating up vs cooling down)
 - [x] Multi-chat support (multiple Telegram groups)
 - [x] Cross-day deduplication
-- [x] Full-text fallback scraping for Fortune AI section and blocked pages
 - [x] Hacker News as an additional source signal (enrichment-only)
 - [x] Signal-weighted ranking
 - [x] Canonical story clustering

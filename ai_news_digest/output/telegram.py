@@ -10,15 +10,52 @@ from ai_news_digest.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, get_dest
 
 TELEGRAM_MAX_LENGTH = 4096
 
+SECTION_MARKERS = {
+    'brief_rundown': 'Brief Rundown:',
+    'trend_watch': 'Trend Watch:',
+    'main_news_trend_watch': 'Main News Trend Watch:',
+    'heating_up': 'Heating Up:',
+    'cooling_down': 'Cooling Down:',
+    'highlights': 'Highlights:',
+    'also_worth_knowing': 'Also Worth Knowing:',
+    'research_builder_signals': 'Research / Builder Signals:',
+    'weekly_preview': 'Weekly Preview:',
+}
+
 
 def _escape(text: str) -> str:
     return html.escape(html.unescape(text))
 
 
+def _normalize_heading_variants(text: str) -> str:
+    normalized = text
+    replacements = {
+        'BRIEF RUNDOWN:': SECTION_MARKERS['brief_rundown'],
+        'TREND WATCH:': SECTION_MARKERS['trend_watch'],
+        'MAIN NEWS TREND WATCH:': SECTION_MARKERS['main_news_trend_watch'],
+        'HEATING UP:': SECTION_MARKERS['heating_up'],
+        'COOLING DOWN:': SECTION_MARKERS['cooling_down'],
+        'HIGHLIGHTS:': SECTION_MARKERS['highlights'],
+        'ALSO WORTH KNOWING:': SECTION_MARKERS['also_worth_knowing'],
+        'RESEARCH / BUILDER SIGNALS:': SECTION_MARKERS['research_builder_signals'],
+        'WEEKLY PREVIEW:': SECTION_MARKERS['weekly_preview'],
+    }
+    for old, new in replacements.items():
+        normalized = normalized.replace(old, new)
+    return normalized
+
+
 def _parse_summary_sections(raw_summary: str) -> dict:
-    remaining = raw_summary
-    if 'BRIEF RUNDOWN:' in remaining:
-        remaining = remaining.split('BRIEF RUNDOWN:', 1)[1]
+    remaining = _normalize_heading_variants(raw_summary)
+    brief = SECTION_MARKERS['brief_rundown']
+    trend = SECTION_MARKERS['trend_watch']
+    highlights = SECTION_MARKERS['highlights']
+    also = SECTION_MARKERS['also_worth_knowing']
+    research = SECTION_MARKERS['research_builder_signals']
+    weekly = SECTION_MARKERS['weekly_preview']
+
+    if brief in remaining:
+        remaining = remaining.split(brief, 1)[1]
 
     sections = {
         'rundown': '',
@@ -29,25 +66,25 @@ def _parse_summary_sections(raw_summary: str) -> dict:
         'weekly_preview': '',
     }
 
-    if 'ALSO WORTH KNOWING:' in remaining:
-        before_also, sections['also'] = remaining.split('ALSO WORTH KNOWING:', 1)
+    if also in remaining:
+        before_also, sections['also'] = remaining.split(also, 1)
     else:
         before_also = remaining
 
-    if 'RESEARCH / BUILDER SIGNALS:' in sections['also']:
-        sections['also'], sections['research'] = sections['also'].split('RESEARCH / BUILDER SIGNALS:', 1)
-    if 'WEEKLY PREVIEW:' in sections['research']:
-        sections['research'], sections['weekly_preview'] = sections['research'].split('WEEKLY PREVIEW:', 1)
-    elif 'WEEKLY PREVIEW:' in sections['also']:
-        sections['also'], sections['weekly_preview'] = sections['also'].split('WEEKLY PREVIEW:', 1)
+    if research in sections['also']:
+        sections['also'], sections['research'] = sections['also'].split(research, 1)
+    if weekly in sections['research']:
+        sections['research'], sections['weekly_preview'] = sections['research'].split(weekly, 1)
+    elif weekly in sections['also']:
+        sections['also'], sections['weekly_preview'] = sections['also'].split(weekly, 1)
 
-    if 'HIGHLIGHTS:' in before_also:
-        pre_highlights, sections['highlights'] = before_also.split('HIGHLIGHTS:', 1)
+    if highlights in before_also:
+        pre_highlights, sections['highlights'] = before_also.split(highlights, 1)
     else:
         pre_highlights = before_also
 
-    if 'TREND WATCH:' in pre_highlights:
-        sections['rundown'], sections['trend'] = pre_highlights.split('TREND WATCH:', 1)
+    if trend in pre_highlights:
+        sections['rundown'], sections['trend'] = pre_highlights.split(trend, 1)
     else:
         sections['rundown'] = pre_highlights
 
@@ -96,16 +133,40 @@ def _limit_bullets(raw: str, limit: int) -> str:
     return '\n\n'.join(_split_bullet_blocks(raw)[:limit])
 
 
+def _source_match(line: str):
+    patterns = [
+        r'^Source:\s*(?P<name>.+?)\s*\((?P<url>https?://\S+?)\)$',
+        r'^Source:\s*(?P<name>.+?)\s*-\s*(?P<url>https?://\S+)$',
+    ]
+    for pattern in patterns:
+        match = re.match(pattern, line)
+        if match:
+            return match
+    return None
+
+
+def _bullet_match(line: str):
+    patterns = [
+        r'^(?P<title>.+?)\s*\|\s*(?P<source>.+?)\s*\((?P<url>https?://\S+?)\)$',
+        r'^(?P<title>.+?)\s*\|\s*(?P<source>.+?)\s*-\s*(?P<url>https?://\S+)$',
+    ]
+    for pattern in patterns:
+        match = re.match(pattern, line)
+        if match:
+            return match
+    return None
+
+
 def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str:
     lines = []
     for line in raw.split('\n'):
         line = line.strip()
         if not line:
             continue
-        source_match = re.match(r'^Source:\s*(.+?)\s*-\s*(https?://\S+)$', line)
+        source_match = _source_match(line)
         if source_match:
-            name = _escape(source_match.group(1).strip())
-            url = source_match.group(2).strip()
+            name = _escape(source_match.group('name').strip())
+            url = source_match.group('url').strip()
             lines.append(f'Source: <a href="{url}">{name}</a>')
         elif re.match(r'^\d+\.\s', line):
             if lines:
@@ -125,12 +186,12 @@ def _format_bullets(raw: str) -> str:
         if not lines:
             continue
         first = lines[0].strip().lstrip('- ')
-        pipe = re.match(r'^(.+?)\s*\|\s*(.+?)\s*-\s*(https?://\S+)$', first)
+        pipe = _bullet_match(first)
         if pipe:
-            title = _escape(pipe.group(1).strip())
-            source = _escape(pipe.group(2).strip())
-            url = pipe.group(3).strip()
-            rendered = [f'• <a href="{url}">{title}</a> ({source})']
+            title = _escape(pipe.group('title').strip())
+            source = _escape(pipe.group('source').strip())
+            url = pipe.group('url').strip()
+            rendered = [f'• {title} | <a href="{url}">{source}</a>']
         else:
             rendered = [f'• {_escape(first)}']
         for extra in lines[1:]:
@@ -141,14 +202,14 @@ def _format_bullets(raw: str) -> str:
 
 def _format_trend_watch(raw: str) -> str:
     lines = []
-    for line in raw.split('\n'):
+    for line in _normalize_heading_variants(raw).split('\n'):
         s = line.strip()
         if not s:
             continue
-        if s.endswith('Trend Watch:'):
+        if s in {SECTION_MARKERS['main_news_trend_watch'], SECTION_MARKERS['trend_watch']}:
             lines.append(f'<b>{_escape(s)}</b>')
-        elif s.lower() in {'heating up:', 'cooling down:'}:
-            lines.append(f'<b>{_escape(s.title())}</b>')
+        elif s in {SECTION_MARKERS['heating_up'], SECTION_MARKERS['cooling_down']}:
+            lines.append(f'<b>{_escape(s)}</b>')
         elif s.startswith('-'):
             lines.append(f"• {_escape(s[1:].strip())}")
         else:
@@ -171,15 +232,15 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
 
     parts = [header + rundown]
     if trend_watch:
-        parts.append(f'<b>Trend Watch:</b>\n{trend_watch}')
+        parts.append(f'<b>Trend Watch</b>\n{trend_watch}')
     if highlights:
-        parts.append(f'<b>Must-Know Highlights:</b>\n\n{highlights}')
+        parts.append(f'<b>Highlights</b>\n\n{highlights}')
     if also:
-        parts.append(f'<b>Also Worth Knowing:</b>\n{also}')
+        parts.append(f'<b>Also Worth Knowing</b>\n{also}')
     if research:
-        parts.append(f'<b>Research / Builder Signals:</b>\n{research}')
+        parts.append(f'<b>Research / Builder Signals</b>\n{research}')
     if weekly_preview:
-        parts.append(f'<b>Weekly Preview:</b>\n{weekly_preview}')
+        parts.append(f'<b>Weekly Preview</b>\n{weekly_preview}')
 
     body = '\n\n'.join(part.strip() for part in parts if part.strip())
     if len(body) <= TELEGRAM_MAX_LENGTH:

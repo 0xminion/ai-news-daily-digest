@@ -148,5 +148,4 @@ def format_trend_context(snapshot: dict) -> str:
         return ''
     lines = [f"Trend lookback: {snapshot.get('window_days', '?')} days"]
     lines.extend(_format_section('Main News Trend Watch:', snapshot.get('main_news', {})))
-    lines.extend(_format_section('Research / Builder Trend Watch:', snapshot.get('research_builder', {})))
     return '\n'.join(lines) if len(lines) > 1 else 'No strong cross-day topic shifts detected.'

@@ -187,8 +187,7 @@ def render_weekly_highlights(payload: dict) -> str:
         lines.append(f"{idx}. {item['headline']}")
         lines.append(f"   Confidence: {item.get('confidence', 'n/a')}")
         lines.append(f"   {item['why_it_matters']}")
-        lines.append(f"   {item['eli5']}")
-        lines.append(f"   Source: {item['source']} - {item['url']}")
+        lines.append(f"   Source: {item['source']} ({item['url']})")
     lines.extend(['', 'Trending and Directions:'])
     for item in payload.get('trending_directions', []):
         lines.append(f"- {item['topic']} — {item['direction']} [{item.get('confidence', 'n/a')}] ({item['note']})")
@@ -201,13 +200,11 @@ def render_weekly_highlights(payload: dict) -> str:
         for item in payload['research_builder_signals']:
             lines.append(f"- [{item.get('subtype', 'signal')}] {item['headline']} ({item['source']})")
             lines.append(f"  Confidence: {item.get('confidence', 'n/a')}")
-            lines.append(f"  {item['eli5']}")
     if payload.get('missed_but_emerging'):
         lines.extend(['', 'Missed but Emerging:'])
         for item in payload['missed_but_emerging']:
             lines.append(f"- [{item.get('subtype', 'signal')}] {item['headline']} ({item['source']})")
             lines.append(f"  Confidence: {item.get('confidence', 'n/a')}")
-            lines.append(f"  {item['eli5']}")
     lines.extend(['', 'Question Prompts:'])
     for q in payload.get('thinking_prompts', []):
         lines.append(f"- {q}")

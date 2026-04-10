@@ -13,9 +13,7 @@ RSS_FEEDS = [
     ("VentureBeat", "https://venturebeat.com/feed/"),
 ]
 
-PAGE_SOURCES = [
-    {"name": "Fortune", "url": "https://fortune.com/section/artificial-intelligence/", "extractor": "fortune_ai"},
-]
+PAGE_SOURCES = []
 
 ORTHOGONAL_RSS_FEEDS = [
     ("arXiv AI", "https://rss.arxiv.org/rss/cs.AI"),
@@ -61,7 +59,6 @@ SOURCE_TRUST_WEIGHTS = {
     "The Verge": 0.93,
     "TechCrunch": 0.92,
     "VentureBeat": 0.91,
-    "Fortune": 0.89,
     "GitHub Blog AI/ML": 0.62,
     "arXiv AI": 0.52,
     "arXiv ML": 0.52,

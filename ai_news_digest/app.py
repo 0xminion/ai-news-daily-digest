@@ -146,35 +146,22 @@ def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
                 lines.append('COOLING DOWN:')
                 for item in main_trend['cooling_down'][:2]:
                     lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
-        if research_trend.get('heating_up') or research_trend.get('cooling_down'):
-            lines.append('RESEARCH / BUILDER TREND WATCH:')
-            if research_trend.get('heating_up'):
-                lines.append('HEATING UP:')
-                for item in research_trend['heating_up'][:3]:
-                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
-            if research_trend.get('cooling_down'):
-                lines.append('COOLING DOWN:')
-                for item in research_trend['cooling_down'][:2]:
-                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
         lines.append('')
     lines.append('HIGHLIGHTS:')
     for idx, article in enumerate(main_articles[:5], start=1):
         lines.append(f"{idx}. {article['title']}")
         lines.append(f"Representative score: {article.get('ranking_score', 0)}")
-        if article.get('ranking_debug', {}).get('reasons'):
-            lines.append(f"Why it made the digest (debug): {' | '.join(article['ranking_debug']['reasons'])}")
-        lines.append(f"Source: {article['source']} - {article['url']}")
+        lines.append(f"Source: {article['source']} ({article['url']})")
         lines.append('')
     lines.append('ALSO WORTH KNOWING:')
     for article in main_articles[5:9]:
-        lines.append(f"- {article['title']} | {article['source']} - {article['url']}")
+        lines.append(f"- {article['title']} | {article['source']} ({article['url']})")
     if research_articles:
         lines.append('')
         lines.append('RESEARCH / BUILDER SIGNALS:')
         for article in research_articles[:RESEARCH_SIGNALS_COUNT]:
             subtype = article.get('subtype', 'signal')
-            lines.append(f"- [{subtype}] {article['title']} | {article['source']} - {article['url']}")
-            lines.append(f"  ELI5: {article.get('eli5', 'This is a technical clue that may matter later even if it is not the biggest headline now.')}")
+            lines.append(f"- [{subtype}] {article['title']} | {article['source']} ({article['url']})")
     lines.append('')
     lines.extend(weekly_preview.split('\n'))
     return '\n'.join(lines)

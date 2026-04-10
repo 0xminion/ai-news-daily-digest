@@ -20,40 +20,32 @@ Rules:
 - Research / Builder Signals must be its own separate section, not mixed into the main highlights.
 - If weekly preview context is provided, include a short WEEKLY PREVIEW section near the end.
 - Keep Research / Builder Signals to at most 5 items.
-- For each Research / Builder Signals item, add one plain-English ELI5 continuation line right below the bullet.
 - If a research/builder signal has a subtype label in the article metadata, preserve it like [paper], [repo], [builder feed], or [product / launch].
 
 Output format — use EXACTLY this structure:
-BRIEF RUNDOWN:
+Brief Rundown:
 [your 2-3 sentence rundown here]
 
-TREND WATCH:
-MAIN NEWS TREND WATCH:
-HEATING UP:
+Trend Watch:
+MAIN NEWS Trend Watch:
+Heating Up:
 - [Topic] — [why it is heating up]
-COOLING DOWN:
-- [Topic] — [why it is cooling down]
-RESEARCH / BUILDER TREND WATCH:
-HEATING UP:
-- [Topic] — [why it is heating up]
-COOLING DOWN:
+Cooling Down:
 - [Topic] — [why it is cooling down]
 
-HIGHLIGHTS:
+Highlights:
 1. [Headline]
 [1-2 sentence summary]
-Source: [Publication Name] - [URL]
+Source: [Publication Name] ([URL])
 
-ALSO WORTH KNOWING:
-- [Headline] | [Publication Name] - [URL]
+Also Worth Knowing:
+- [Headline] | [Publication Name] ([URL])
 
-RESEARCH / BUILDER SIGNALS:
-- [[Subtype]] [Headline] | [Publication Name] - [URL]
-  ELI5: [simple one-line explanation]
-- [[Subtype]] [Headline] | [Publication Name] - [URL]
-  ELI5: [simple one-line explanation]
+Research / Builder Signals:
+- [Subtype] [Headline] | [Publication Name] ([URL])
+- [Subtype] [Headline] | [Publication Name] ([URL])
 
-WEEKLY PREVIEW:
+Weekly Preview:
 - [brief preview bullet]
 - [brief preview bullet]
 
@@ -186,4 +178,4 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
 
 
 def _quiet_day_message() -> str:
-    return 'BRIEF RUNDOWN:\nQuiet day in AI news — nothing major from our tracked sources in the last 24 hours.\n\nHIGHLIGHTS:\nNo highlights today.'
+    return 'Brief Rundown:\nQuiet day in AI news — nothing major from our tracked sources in the last 24 hours.\n\nHighlights:\nNo highlights today.'
