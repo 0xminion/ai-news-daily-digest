@@ -170,15 +170,14 @@ ai_news_digest/
     └── follow_builders/
         └── adapter.py             # v2 integration seam for remote builder feeds
 
-main.py                             # Thin daily entrypoint wrapper
-config.py                           # Compatibility shim
-fetcher.py                          # Compatibility shim
-storage.py                          # Compatibility shim
-summarizer.py                       # Compatibility shim
-telegram_bot.py                     # Compatibility shim
+main.py                             # Daily entrypoint
+weekly.py                           # Weekly entrypoint
+review_samples.py                   # Sample output generator
 examples/
+├── fixtures/                       # Test payloads
 ├── sample-daily-digest.md
 └── sample-weekly-highlights.md
+docs/                               # Design docs
 ```
 
 ## Tests
