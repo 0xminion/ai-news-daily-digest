@@ -78,7 +78,21 @@ class TestSendMessage:
             'RESEARCH / BUILDER SIGNALS:\n- [paper] Paper title | arXiv AI (https://example.com/paper)'
         )
         messages = _format_digest(summary)
-        assert any('[paper] Paper title' in msg for msg in messages)
+        # Subtype prefix is plain text, headline is the link, source name is plain
+        assert any('[paper]' in msg for msg in messages)
+        assert any('<a href="https://example.com/paper">Paper title</a>' in msg for msg in messages)
+        assert any('(arXiv AI)' in msg for msg in messages)
+
+    def test_escaped_brackets_researh_items(self):
+        """Backslash-escaped brackets from malformed LLM output get cleaned."""
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'ALSO WORTH KNOWING:\n- Side item | Test (https://example.com/also)\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- \\[repo\\] claude-context | GitHub (https://github.com/foo/bar)'
+        )
+        messages = _format_digest(summary)
+        assert any('[repo]' in msg for msg in messages)
+        assert '\\[' not in messages[0]  # escaped brackets removed
 
 
     def test_title_case_headings_and_source_name_links(self):

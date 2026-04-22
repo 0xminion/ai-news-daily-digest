@@ -228,12 +228,21 @@ def _format_bullets(raw: str) -> str:
         if not lines:
             continue
         first = lines[0].strip().lstrip('- ')
+        # Normalize escaped brackets: \\[paper\\] → [paper]
+        first = first.replace('\\[', '[').replace('\\]', ']')
         pipe = _bullet_match(first)
         if pipe:
             title = _escape(pipe.group('title').strip())
             source = _escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
-            rendered = [f'• <a href="{url}">{title}</a> ({source})']
+            # Pull [subtype] prefix out of title so link is ONLY on headline
+            subtype_match = re.match(r'^(\[\w+\])\s+', title)
+            if subtype_match:
+                subtype_prefix = subtype_match.group(1) + ' '
+                title = title[subtype_match.end():]
+            else:
+                subtype_prefix = ''
+            rendered = [f'• {subtype_prefix}<a href="{url}">{title}</a> ({source})']
         else:
             rendered = [f'• {_embed_links(_escape(first))}']
         for extra in lines[1:]:
