@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Iterable
-
 from ai_news_digest.config import get_follow_builders_config
 from ai_news_digest.storage.topic_memory import save_follow_builders_state
 

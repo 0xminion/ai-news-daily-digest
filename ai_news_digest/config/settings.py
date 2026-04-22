@@ -9,9 +9,7 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from .feeds import RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS
-from .topics import HN_SIGNAL_QUERIES
 from .trust import SOURCE_TRUST_WEIGHTS
-from .topics import TREND_TOPICS
 
 load_dotenv()
 
@@ -64,11 +62,14 @@ FOLLOW_BUILDERS_PROMPT_STYLE = os.getenv("FOLLOW_BUILDERS_PROMPT_STYLE", "builde
 FOLLOW_BUILDERS_SCHEMA_VERSION = os.getenv("FOLLOW_BUILDERS_SCHEMA_VERSION", "v1")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+# Guard: only configure logging if the root logger has no handlers yet. This
+# prevents hijacking another library's logging setup when imported as a module.
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
 logger = logging.getLogger("ai-digest")
 
 MAX_ARTICLES_TO_SUMMARIZE = 20
@@ -80,8 +81,16 @@ CONTENT_FETCH_TIMEOUT = int(os.getenv("CONTENT_FETCH_TIMEOUT", "30"))
 MIN_ARTICLE_TEXT_LENGTH = int(os.getenv("MIN_ARTICLE_TEXT_LENGTH", "300"))
 FULL_CONTENT_FETCH_LIMIT = int(os.getenv("FULL_CONTENT_FETCH_LIMIT", "8"))
 
-for d in (REPORT_ARCHIVE_DIR, WEEKLY_ARCHIVE_DIR, STATE_DIR):
-    d.mkdir(parents=True, exist_ok=True)
+# Lazy directory creation: only create on first access, not at import time.
+_dirs_initialized = False
+
+
+def _ensure_directories():
+    global _dirs_initialized
+    if not _dirs_initialized:
+        for d in (REPORT_ARCHIVE_DIR, WEEKLY_ARCHIVE_DIR, STATE_DIR):
+            d.mkdir(parents=True, exist_ok=True)
+        _dirs_initialized = True
 
 
 def get_llm_settings() -> dict:
@@ -178,6 +187,7 @@ def get_follow_builders_config() -> dict:
 
 
 def validate_config() -> None:
+    _ensure_directories()
     destinations = get_telegram_destinations()
     if not destinations:
         raise ValueError("Missing Telegram destination configuration. Set TELEGRAM_CHAT_ID or TELEGRAM_DESTINATIONS_JSON.")

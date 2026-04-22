@@ -104,7 +104,7 @@ def _extract_archive_org_url(target_url: str) -> str | None:
 
 def _archive_ph_candidates(target_url: str) -> list[str]:
     encoded = quote(target_url, safe='')
-    return [f'https://archive.ph/{target_url}', f'https://archive.ph/{encoded}', f'https://archive.today/{encoded}']
+    return [f'https://archive.ph/{encoded}', f'https://archive.today/{encoded}']
 
 
 # ---------------------------------------------------------------------------
@@ -114,8 +114,19 @@ def _archive_ph_candidates(target_url: str) -> list[str]:
 @with_retry(max_attempts=2, delay=3.0, backoff=2.0)
 def _fetch_html(url: str, use_cloudscraper=False):
     s = _cloudscraper_session() if use_cloudscraper else _base_session()
-    r = s.get(url, timeout=CONTENT_FETCH_TIMEOUT)
+    r = s.get(url, timeout=CONTENT_FETCH_TIMEOUT, allow_redirects=False)
     r.raise_for_status()
+    # Redirects: if we got a redirect, validate the destination before following
+    if r.is_redirect or (300 <= r.status_code < 400):
+        location = r.headers.get('Location', '')
+        if not location:
+            raise RuntimeError(f'Redirect from {url} has no Location header')
+        resolved = urljoin(url, location)
+        if not _is_allowed_url(resolved):
+            raise ValueError(f'Blocked SSRF redirect target: {resolved}')
+        # Follow the redirect with a validated target
+        r = s.get(resolved, timeout=CONTENT_FETCH_TIMEOUT, allow_redirects=False)
+        r.raise_for_status()
     return r
 
 
@@ -142,6 +153,9 @@ def fetch_html_with_fallback(url: str, source_name: str) -> tuple[str, str]:
         archive_url = None
     for candidate in ([archive_url] if archive_url else []) + _archive_ph_candidates(url):
         if not candidate:
+            continue
+        if not _is_allowed_url(candidate):
+            logger.info('Skipping archive candidate that fails SSRF check: %s', candidate)
             continue
         try:
             r = _fetch_html(candidate, use_cloudscraper=False)

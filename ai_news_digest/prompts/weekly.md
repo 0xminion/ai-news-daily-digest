@@ -1,4 +1,4 @@
-You are an AI analyst producing a weekly highlights report. Given the following daily digest archives from the past {window_days} days, produce a structured weekly overview.
+You are an AI analyst producing a weekly highlights report. Given the following daily digest archives from the past {{window_days}} days, produce a structured weekly overview.
 
 Rules:
 - Synthesize across days to identify the week's major themes.
@@ -59,4 +59,4 @@ You MUST respond with valid JSON matching this exact schema:
 }
 
 Daily archives:
-{archives_json}
+{{archives_json}}

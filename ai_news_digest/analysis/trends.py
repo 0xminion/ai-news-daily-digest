@@ -120,11 +120,12 @@ def compute_trend_snapshot(current_articles: list[dict], lookback_days: int = TR
     main_current = [a for a in current_articles if a.get('source') not in RESEARCH_SOURCES]
     research_current = [a for a in current_articles if a.get('source') in RESEARCH_SOURCES]
 
+    combined = _compute_section_snapshot(current_articles, history, lookback_days)
     return {
         'window_days': lookback_days,
         'main_news': _compute_section_snapshot(main_current, main_history, lookback_days),
         'research_builder': _compute_section_snapshot(research_current, research_history, lookback_days),
-        'daily_topic_counts': _compute_section_snapshot(current_articles, history, lookback_days)['daily_topic_counts'],
+        'daily_topic_counts': combined.get('daily_topic_counts', []),
     }
 
 

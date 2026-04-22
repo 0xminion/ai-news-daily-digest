@@ -22,5 +22,5 @@ from .settings import (
     RSS_WINDOW_HOURS, USER_AGENT, CONTENT_FETCH_TIMEOUT, MIN_ARTICLE_TEXT_LENGTH,
     FULL_CONTENT_FETCH_LIMIT, DELIVERY_HOUR,
     get_llm_settings, get_destination_profiles, get_telegram_destinations,
-    get_follow_builders_config, validate_config,
+    get_follow_builders_config, validate_config, _ensure_directories,
 )

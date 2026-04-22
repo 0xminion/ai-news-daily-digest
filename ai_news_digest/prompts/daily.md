@@ -49,13 +49,13 @@ If there are no research/builder signals, set research_builder_signals to an emp
 If there is no weekly preview context, set weekly_preview to an empty array.
 
 Trend context:
-{trend_context}
+{{trend_context}}
 
 Weekly preview context:
-{weekly_preview}
+{{weekly_preview}}
 
 Main articles:
-{main_articles_json}
+{{main_articles_json}}
 
 Research / Builder signal articles:
-{research_articles_json}
+{{research_articles_json}}

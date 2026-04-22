@@ -134,9 +134,10 @@ def fetch_digest_inputs() -> dict:
     )
     capped_research = _apply_research_topic_caps(source_capped_research, limit=RESEARCH_SIGNALS_COUNT)
 
+    day_counts = trend_snapshot.get('daily_topic_counts', [])
     save_topic_memory({
-        'saved_at': trend_snapshot.get('daily_topic_counts', [{}])[-1].get('date'),
-        'topic_counts': trend_snapshot.get('daily_topic_counts', [{}])[-1].get('counts', {}),
+        'saved_at': day_counts[-1].get('date') if day_counts else _utc_now().isoformat()[:10],
+        'topic_counts': day_counts[-1].get('counts', {}) if day_counts else {},
     })
 
     return {

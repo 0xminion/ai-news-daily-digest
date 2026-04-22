@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import re
+import time
 from datetime import datetime
 
 import requests
@@ -9,6 +10,42 @@ import requests
 from ai_news_digest.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, get_destination_profiles, get_telegram_destinations, logger
 
 TELEGRAM_MAX_LENGTH = 4096
+
+
+def _split_at_safe_boundary(html: str, max_len: int) -> tuple[str, str]:
+    """Split HTML at a safe boundary (newline or tag end) without breaking tags."""
+    if len(html) <= max_len:
+        return html, ""
+    candidate = html[:max_len]
+    # Try to split at a double newline first
+    last_double_newline = candidate.rfind("\n\n")
+    if last_double_newline > max_len * 0.5:
+        return html[:last_double_newline], html[last_double_newline:].lstrip()
+    # Try to split at a single newline
+    last_newline = candidate.rfind("\n")
+    if last_newline > max_len * 0.5:
+        return html[:last_newline], html[last_newline:].lstrip()
+    # Try to split after the last complete HTML tag
+    last_tag_end = candidate.rfind(">")
+    if last_tag_end > max_len * 0.5:
+        return html[:last_tag_end + 1], html[last_tag_end + 1:]
+    # Fallback: just cut — but strip trailing partial tags to avoid breaking
+    truncated = candidate
+    # If we're inside a tag, walk back to before the <
+    if "<" in truncated and (">" not in truncated or truncated.rfind("<") > truncated.rfind(">")):
+        last_open = truncated.rfind("<")
+        if last_open > max_len * 0.3:
+            truncated = truncated[:last_open]
+        else:
+            # The tag itself is longer than max_len — try to include the closing >
+            close_tag = html.find(">", max_len)
+            if close_tag != -1 and close_tag <= max_len * 1.3:
+                truncated = html[:close_tag + 1]
+            else:
+                # Tag is absurdly long; hard cut before the opening <
+                truncated = html[:last_open]
+    return truncated, html[len(truncated):]
+
 
 SECTION_MARKERS = {
     'brief_rundown': 'Brief Rundown:',
@@ -103,8 +140,10 @@ def _limit_numbered(raw: str, limit: int) -> str:
         return ''
     entries = []
     current = []
+    # Match 1.  1)  •  -  etc.
+    pattern = re.compile(r'^(?:\d+[.\)]+\s+|•\s+|\-\s+)')
     for line in raw.split('\n'):
-        if re.match(r'^\d+\.\s', line.strip()) and current:
+        if pattern.match(line.strip()) and current:
             entries.append('\n'.join(current).strip())
             current = [line]
         else:
@@ -180,6 +219,18 @@ def _embed_links(text: str) -> str:
     """Convert bare URLs in body text into hidden embedded links on domain name."""
     def _replace_url(m):
         url = m.group(0)
+        # Strip trailing punctuation that got caught by \S+ — but NOT parens (handled below)
+        stripped = url.rstrip('.,>\'\"]!?;:$')
+        # Parentheses are special: only strip if unbalanced
+        open_parens = stripped.count('(')
+        close_parens = stripped.count(')')
+        if close_parens > open_parens:
+            # Likely the ) is sentence punctuation, not part of the URL
+            stripped = stripped.rstrip(')')
+        if stripped.startswith('(') and not stripped.endswith(')'):
+            stripped = stripped.lstrip('(')
+        # If stripping removed everything (unlikely), keep original
+        url = stripped if stripped else url
         domain = re.sub(r'^https?://(www\.)?', '', url).split('/')[0]
         return f'<a href="{url}">{_escape(domain)}</a>'
     return re.sub(r'https?://\S+', _replace_url, text)
@@ -300,19 +351,34 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
     if len(body) <= TELEGRAM_MAX_LENGTH:
         return [body]
 
-    chunks = []
+    chunks: list[str] = []
     current = ''
     for part in parts:
         candidate = (current + '\n\n' + part).strip() if current else part.strip()
         if len(candidate) <= TELEGRAM_MAX_LENGTH:
             current = candidate
-        else:
-            if current:
-                chunks.append(current)
+            continue
+        if current:
+            chunks.append(current)
+        if len(part.strip()) <= TELEGRAM_MAX_LENGTH:
             current = part.strip()
+        else:
+            remaining = part.strip()
+            while remaining:
+                chunk, remaining = _split_at_safe_boundary(remaining, TELEGRAM_MAX_LENGTH)
+                if chunk:
+                    chunks.append(chunk)
+            current = ''
     if current:
-        chunks.append(current)
-    return [chunk[:TELEGRAM_MAX_LENGTH] for chunk in chunks]
+        if len(current) <= TELEGRAM_MAX_LENGTH:
+            chunks.append(current)
+        else:
+            remaining = current
+            while remaining:
+                chunk, remaining = _split_at_safe_boundary(remaining, TELEGRAM_MAX_LENGTH)
+                if chunk:
+                    chunks.append(chunk)
+    return chunks
 
 
 def _send_message(text: str, retry: bool = True, bot_token: str | None = None, chat_id: str | None = None) -> bool:
@@ -328,6 +394,14 @@ def _send_message(text: str, retry: bool = True, bot_token: str | None = None, c
     if response.status_code == 403:
         logger.error('Telegram 403: Bot was removed from the chat or chat ID is invalid.')
         return False
+    if response.status_code == 429:
+        retry_after = response.headers.get('Retry-After')
+        if retry_after:
+            wait = max(int(retry_after), 1)
+            logger.warning('Telegram 429 — rate limited. Waiting %ds before retry.', wait)
+            time.sleep(wait)
+        else:
+            time.sleep(5)
     if retry:
         return _send_message(text, retry=False, bot_token=bot_token, chat_id=chat_id)
     return False
@@ -341,14 +415,55 @@ def send_digest(raw_summary: str, destinations: list[dict] | None = None) -> boo
     all_ok = True
     for destination in destinations:
         messages = _format_digest(raw_summary, profile_name=destination.get('profile', 'default'))
-        ok = True
+        dest_ok = True
+        failed_messages = []
         for message in messages:
             if not _send_message(message, bot_token=destination.get('bot_token'), chat_id=destination.get('chat_id')):
+                dest_ok = False
+                all_ok = False
+                failed_messages.append(message[:100])
+        if dest_ok:
+            logger.info('Digest sent to %s', destination.get('name', destination.get('chat_id')))
+        else:
+            logger.warning('Digest partially failed for %s: %d/%d messages sent', destination.get('name', destination.get('chat_id')), len(messages) - len(failed_messages), len(messages))
+    return all_ok
+
+
+def _chunk_html(html: str, max_len: int) -> list[str]:
+    """Split HTML string into chunks that fit Telegram's message limit without breaking tags."""
+    chunks = []
+    remaining = html
+    while remaining:
+        chunk, remaining = _split_at_safe_boundary(remaining, max_len)
+        if chunk:
+            chunks.append(chunk)
+        if not remaining:
+            break
+    return chunks
+
+
+def send_weekly_report(weekly_html: str, destinations: list[dict] | None = None) -> bool:
+    """Send a weekly report (already HTML) to destinations with safe chunking."""
+    destinations = destinations or get_telegram_destinations()
+    if not destinations:
+        logger.error('No Telegram destinations configured')
+        return False
+    all_ok = True
+    chunks = _chunk_html(weekly_html, TELEGRAM_MAX_LENGTH)
+    for destination in destinations:
+        ok = True
+        failed_chunks = []
+        for chunk in chunks:
+            if not _send_message(chunk, bot_token=destination.get('bot_token'), chat_id=destination.get('chat_id')):
                 ok = False
                 all_ok = False
-                break
+                failed_chunks.append(chunk[:100])
         if ok:
-            logger.info('Digest sent to %s', destination.get('name', destination.get('chat_id')))
+            logger.info('Weekly report sent to %s', destination.get('name', destination.get('chat_id')))
+        else:
+            logger.warning('Weekly report partially failed for %s: %d/%d chunks sent',
+                           destination.get('name', destination.get('chat_id')),
+                           len(chunks) - len(failed_chunks), len(chunks))
     return all_ok
 
 

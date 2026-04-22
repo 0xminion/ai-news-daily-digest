@@ -32,4 +32,7 @@ def within_hours(dt: Optional[datetime], hours: int) -> bool:
         return False
     now = datetime.now(timezone.utc)
     delta = now - dt
-    return 0 <= delta.total_seconds() <= hours * 3600
+    # Accept slight future drift (up to 5 min) but not articles published hours/days in the future
+    if delta.total_seconds() < -300:
+        return False
+    return delta.total_seconds() <= hours * 3600

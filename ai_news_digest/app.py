@@ -3,7 +3,7 @@ from __future__ import annotations
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, build_weekly_preview, render_weekly_highlights
 from ai_news_digest.config import RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import summarize
-from ai_news_digest.output.telegram import _format_digest, _send_message, send_digest, send_text_report
+from ai_news_digest.output.telegram import _format_digest, _send_message, send_digest, send_weekly_report
 from ai_news_digest.sources.pipeline import fetch_digest_inputs
 from ai_news_digest.storage.archive import prune_old_reports, save_daily_report, save_weekly_report
 
@@ -37,7 +37,6 @@ def run_daily() -> int:
     save_daily_report(
         summary,
         payload['main_articles'] + payload['research_articles'],
-        _format_digest(summary),
         trends=payload['trend_snapshot'],
         clusters=payload['main_clusters'] + payload['research_clusters'],
     )
@@ -178,10 +177,6 @@ def run_weekly(deliver: bool = True) -> int:
     payload, text = build_weekly_sample()
     save_weekly_report(payload, text)
     if deliver:
-        destinations = get_telegram_destinations()
-        ok = True
-        for dest in destinations:
-            if not _send_message(text, bot_token=dest.get('bot_token'), chat_id=dest.get('chat_id')):
-                ok = False
+        ok = send_weekly_report(text, destinations=get_telegram_destinations())
         return 0 if ok else 1
     return 0

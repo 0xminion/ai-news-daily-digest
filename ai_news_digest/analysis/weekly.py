@@ -14,6 +14,9 @@ from ai_news_digest.config import (
     WEEKLY_RESEARCH_SIGNALS_COUNT,
 )
 from ai_news_digest.storage.archive import load_recent_report_payloads
+from ai_news_digest.llm.service import summarize_weekly
+from ai_news_digest.config import logger
+
 
 RESEARCH_SOURCES = {
     'arXiv AI',
@@ -77,6 +80,13 @@ def _summarize_clusters(clusters: list[dict]) -> list[dict]:
 
 def build_weekly_highlights_payload(days: int = 7) -> dict:
     payloads = load_recent_report_payloads(days=days, include_today=True)
+    # Attempt LLM-powered weekly synthesis first
+    if payloads:
+        try:
+            return summarize_weekly(payloads, window_days=days)
+        except Exception as exc:
+            logger.warning('Weekly LLM synthesis failed (%s), falling back to deterministic build', exc)
+
     main_articles = []
     research_articles = []
     topic_counts = defaultdict(list)
@@ -190,7 +200,7 @@ def render_weekly_highlights(payload: dict) -> str:
     lines = [f'<b>AI Weekly Highlights — {_esc(today)}</b>', '']
 
     if payload.get('executive_summary'):
-        lines.append(f'<b>Executive Summary</b>')
+        lines.append('<b>Executive Summary</b>')
         lines.append(_esc(payload['executive_summary']))
         lines.append('')
 

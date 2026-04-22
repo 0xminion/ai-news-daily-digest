@@ -12,7 +12,7 @@ def test_save_daily_report_writes_files(tmp_path):
         archive, '_utc_now', return_value=datetime(2026, 4, 10, 9, 0, tzinfo=timezone.utc)
     ):
         paths = archive.save_daily_report(
-            'BRIEF RUNDOWN:\nTest', [{'title': 'A', 'url': 'https://example.com/a'}], ['message'], trends={'heating_up': []}
+            'BRIEF RUNDOWN:\nTest', [{'title': 'A', 'url': 'https://example.com/a'}], trends={'heating_up': []}
         )
 
     assert Path(paths['text']).exists()

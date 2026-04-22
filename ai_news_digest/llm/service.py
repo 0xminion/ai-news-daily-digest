@@ -21,9 +21,116 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent / 'prompts'
 REQUIRED_DIGEST_KEYS = {'brief_rundown', 'highlights'}
 OPTIONAL_DIGEST_KEYS = {'trend_watch', 'also_worth_knowing', 'research_builder_signals', 'weekly_preview'}
 
+# Token guard constants — rough ~4 chars/token for English
+# Leave headroom for system instructions, JSON overhead, and response
+_CHARS_PER_TOKEN = 4
+_SYSTEM_OVERHEAD_TOKENS = 512
+# Default model family token limits
+_DEFAULT_CONTEXT_LIMITS = {
+    'claude-sonnet': 200000,
+    'claude-3.5': 200000,
+    'claude-3': 200000,
+    'gpt-4o': 128000,
+    'gpt-4': 8192,
+    'claude': 100000,
+    'ollama': 8192,
+    'minimax': 8192,
+    'gemma': 8192,
+    'default': 8192,
+}
+_MAX_DAILY_ARTICLES = 50
+
+
+def _estimate_tokens(text: str) -> int:
+    """Return rough token estimate using character ratio (no tiktoken needed)."""
+    return max(1, len(text) // _CHARS_PER_TOKEN)
+
+
+def _context_limit_for_model(model: str) -> int:
+    """Infer context window from model name, falling back to a safe default."""
+    model_lower = (model or '').lower()
+    for key, limit in _DEFAULT_CONTEXT_LIMITS.items():
+        if key in model_lower:
+            return limit
+    return _DEFAULT_CONTEXT_LIMITS['default']
+
+
+def _truncate_articles_to_fit(
+    main_articles: list[dict],
+    research_articles: list[dict],
+    trend_context: str,
+    weekly_preview: str,
+    template: str,
+    max_tokens: int,
+) -> tuple[list[dict], list[dict]]:
+    """Progressively reduce article detail until prompt fits in context window."""
+    max_content_chars = max_tokens * _CHARS_PER_TOKEN
+    overhead = template.replace('{{main_articles_json}}', '').replace('{{research_articles_json}}', '').replace('{{trend_context}}', '').replace('{{weekly_preview}}', '')
+    overhead_tokens = _estimate_tokens(overhead + trend_context + weekly_preview) + _SYSTEM_OVERHEAD_TOKENS
+    remaining_tokens = max(0, max_tokens - overhead_tokens)
+    remaining_chars = remaining_tokens * _CHARS_PER_TOKEN
+
+    def _serialize_truncated(main: list[dict], research: list[dict], content_len: int) -> str:
+        def _trim(a: dict) -> dict:
+            return {
+                'title': a.get('title', '')[:200],
+                'summary': (a.get('summary', '') or '')[:content_len],
+                'content': '',
+                'url': a.get('url', ''),
+                'source': a.get('source', ''),
+                'sources': a.get('sources', [a.get('source', '')]),
+                'source_count': a.get('source_count', 1),
+                'subtype': a.get('subtype', ''),
+                'eli5': a.get('eli5', ''),
+                'ranking_score': a.get('ranking_score', 0),
+                'hacker_news': {
+                    'points': a.get('hn_points', 0),
+                    'comments': a.get('hn_comments', 0),
+                    'discussion_url': a.get('hn_discussion_url', ''),
+                },
+            }
+        return json.dumps([_sanitize_dict(_trim(a)) for a in main + research], indent=2)
+
+    # Binary search for max summary length per article
+    low, high = 0, 1500
+    best_content_len = 0
+    while low <= high:
+        mid = (low + high) // 2
+        serialized = _serialize_truncated(main_articles, research_articles, mid)
+        if len(serialized) <= remaining_chars:
+            best_content_len = mid
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    # Ensure at least some context remains
+    best_content_len = max(best_content_len, 100)
+
+    # If still too large, drop articles from the end
+    while True:
+        serialized = _serialize_truncated(main_articles, research_articles, best_content_len)
+        if len(serialized) <= remaining_chars:
+            break
+        # Prefer dropping from research first, then main tail
+        if research_articles:
+            research_articles = research_articles[:-1]
+        elif len(main_articles) > 5:
+            main_articles = main_articles[:-1]
+        else:
+            # Still overflow with tiny main set — increase truncation
+            best_content_len = max(0, best_content_len - 50)
+        if best_content_len <= 0 and len(main_articles) <= 5:
+            logger.error('Prompt too large even with minimal articles — sending as-is; LLM may reject')
+            break
+    return main_articles, research_articles
+
 
 def _sanitize(text: str) -> str:
     return INJECTION.sub('[redacted]', text)
+
+
+def _sanitize_dict(d: dict) -> dict:
+    return {k: _sanitize(v) if isinstance(v, str) else v for k, v in d.items()}
 
 
 def _load_prompt_template(name: str) -> str:
@@ -61,16 +168,26 @@ def _serialize_articles(articles: list[dict]) -> str:
     )
 
 
-def _build_prompt(main_articles: list[dict], research_articles: list[dict], trend_snapshot: dict | None = None, weekly_preview: str = '') -> str:
+def _build_prompt(main_articles: list[dict], research_articles: list[dict], trend_snapshot: dict | None = None, weekly_preview: str = '', max_tokens: int | None = None) -> str:
+    """Build prompt with double-brace markers so article JSON never collides with template tokens."""
     trend_context = format_trend_context(trend_snapshot or {}) or 'No strong cross-day topic shifts detected.'
     template = _load_prompt_template('daily')
-    # Use replace() instead of format() to avoid KeyError when article content contains { or }
+    if max_tokens is not None:
+        # Token guard: cap articles before serializing
+        main_articles, research_articles = _truncate_articles_to_fit(
+            main_articles,
+            research_articles,
+            trend_context,
+            weekly_preview or 'No weekly preview available.',
+            template,
+            max_tokens,
+        )
     return (
         template
-        .replace('{main_articles_json}', _serialize_articles(main_articles))
-        .replace('{research_articles_json}', _serialize_articles(research_articles))
-        .replace('{trend_context}', trend_context)
-        .replace('{weekly_preview}', weekly_preview or 'No weekly preview available.')
+        .replace('{{main_articles_json}}', _serialize_articles(main_articles))
+        .replace('{{research_articles_json}}', _serialize_articles(research_articles))
+        .replace('{{trend_context}}', trend_context)
+        .replace('{{weekly_preview}}', weekly_preview or 'No weekly preview available.')
     )
 
 
@@ -178,6 +295,68 @@ def _structured_to_text(data: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Weekly prompt builder
+# ---------------------------------------------------------------------------
+
+REQUIRED_WEEKLY_KEYS = {'executive_summary', 'highlights_of_the_week'}
+
+
+def _build_weekly_prompt(archives: list[dict], window_days: int = 7, max_tokens: int | None = None) -> str:
+    template = _load_prompt_template('weekly')
+    overhead = template.replace('{{window_days}}', '').replace('{{archives_json}}', '')
+    overhead_tokens = _estimate_tokens(overhead) + _SYSTEM_OVERHEAD_TOKENS
+    if max_tokens is not None:
+        remaining_chars = max(0, max_tokens - overhead_tokens) * _CHARS_PER_TOKEN
+        serialized = json.dumps(archives, indent=2, ensure_ascii=False)
+        # Shrink archive detail progressively: truncate article summaries to 200, then drop articles
+        truncating_archives = archives
+        while len(serialized) > remaining_chars and truncating_archives:
+            if len(truncating_archives) > 3:
+                truncating_archives = truncating_archives[:-1]
+            else:
+                # Summarize each remaining archive down to top 5 articles
+                shrunk = []
+                for payload in truncating_archives:
+                    payload = dict(payload)
+                    payload['articles'] = [
+                        {'title': a.get('title', '')[:200], 'url': a.get('url', ''), 'source': a.get('source', '')}
+                        for a in payload.get('articles', [])[:5]
+                    ]
+                    shrunk.append(payload)
+                truncating_archives = shrunk
+                remaining_chars = max(0, remaining_chars - 500)  # progressively accept smaller output
+            serialized = json.dumps(truncating_archives, indent=2, ensure_ascii=False)
+            if remaining_chars <= 5000:
+                break
+        return (
+            template
+            .replace('{{window_days}}', str(window_days))
+            .replace('{{archives_json}}', serialized)
+        )
+    return (
+        template
+        .replace('{{window_days}}', str(window_days))
+        .replace('{{archives_json}}', json.dumps(archives, indent=2, ensure_ascii=False))
+    )
+
+
+def _validate_weekly(data: dict) -> dict:
+    if not isinstance(data, dict):
+        raise ValueError(f'Expected dict, got {type(data).__name__}')
+    missing = REQUIRED_WEEKLY_KEYS - set(data.keys())
+    if missing:
+        raise ValueError(f'Missing required keys: {missing}')
+    # Ensure list fields
+    for key in ('trending_directions', 'research_focus', 'thinking_prompts',
+                'research_builder_signals', 'missed_but_emerging'):
+        if key not in data:
+            data[key] = []
+        elif not isinstance(data[key], list):
+            data[key] = [data[key]]
+    return data
+
+
+# ---------------------------------------------------------------------------
 # LLM provider calls with retry
 # ---------------------------------------------------------------------------
 
@@ -195,7 +374,7 @@ def _ollama(prompt: str, settings: dict) -> str:
     return result
 
 
-@with_retry(max_attempts=3, delay=5.0, backoff=2.0, exceptions=(requests.RequestException, RuntimeError, json.JSONDecodeError))
+@with_retry(max_attempts=3, delay=5.0, backoff=2.0, exceptions=(requests.RequestException, RuntimeError, json.JSONDecodeError, KeyError))
 def _openai_compatible(prompt: str, settings: dict) -> str:
     provider = settings['provider']
     api_base = settings['api_base'] or {'openai': 'https://api.openai.com/v1', 'openrouter': 'https://openrouter.ai/api/v1'}[provider]
@@ -219,7 +398,14 @@ def _openai_compatible(prompt: str, settings: dict) -> str:
         timeout=settings['timeout'],
     )
     response.raise_for_status()
-    result = response.json()['choices'][0]['message']['content'].strip()
+    data = response.json()
+    choice = data.get('choices', [{}])[0]
+    if not choice or not isinstance(choice, dict):
+        raise RuntimeError(f'OpenAI returned unexpected structure: {data.keys()}')
+    message = choice.get('message', {})
+    if not message or 'content' not in message:
+        raise RuntimeError(f'OpenAI response missing content: {choice.keys()}')
+    result = message['content'].strip()
     if not result:
         raise RuntimeError('OpenAI returned empty response')
     return result
@@ -256,7 +442,10 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
         return _quiet_day_message()
     research_articles = research_articles or []
     settings = get_llm_settings()
-    prompt = _build_prompt(main_articles, research_articles, trend_snapshot, weekly_preview)
+    context_limit = _context_limit_for_model(settings['model'])
+    # Reserve tokens for response generation
+    max_prompt_tokens = max(0, min(context_limit, settings['max_tokens'] * 2) - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
+    prompt = _build_prompt(main_articles, research_articles, trend_snapshot, weekly_preview, max_tokens=max_prompt_tokens)
     logger.info(
         'Sending %d main articles and %d research articles to %s (%s)...',
         len(main_articles),
@@ -293,3 +482,53 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
 
 def _quiet_day_message() -> str:
     return 'Brief Rundown:\nQuiet day in AI news — nothing major from our tracked sources in the last 24 hours.\n\nHighlights:\nNo highlights today.'
+
+
+def summarize_weekly(archives: list[dict], window_days: int = 7, use_llm: bool = True) -> dict:
+    """Generate weekly payload via LLM if enabled, else use deterministic fallback.
+
+    Archives should be recent daily payload dicts (with articles, trends, etc).
+    Returns a dict matching the weekly.md structure.
+    """
+    if not archives:
+        return {
+            'window_days': window_days,
+            'executive_summary': 'No archives available for this week.',
+            'highlights_of_the_week': [],
+            'trending_directions': [],
+            'research_focus': [],
+            'thinking_prompts': [],
+            'research_builder_signals': [],
+            'missed_but_emerging': [],
+        }
+    if not use_llm:
+        raise RuntimeError('Deterministic weekly fallback is removed; use_llm must be True')
+    settings = get_llm_settings()
+    context_limit = _context_limit_for_model(settings['model'])
+    # Reserve tokens for response generation
+    max_prompt_tokens = max(0, min(context_limit, settings['max_tokens'] * 2) - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
+    prompt = _build_weekly_prompt(archives, window_days=window_days, max_tokens=max_prompt_tokens)
+    logger.info(
+        'Sending %d archive days to weekly prompt (%s / %s)...',
+        len(archives),
+        settings['provider'],
+        settings['model'],
+    )
+    if settings['provider'] == 'ollama':
+        raw = _ollama(prompt, settings)
+    elif settings['provider'] in {'openai', 'openrouter'}:
+        raw = _openai_compatible(prompt, settings)
+    elif settings['provider'] == 'anthropic':
+        raw = _anthropic(prompt, settings)
+    else:
+        raise ValueError(f"Unsupported LLM provider '{settings['provider']}'")
+    try:
+        parsed = _extract_json(raw)
+        validated = _validate_weekly(parsed)
+        logger.info('Weekly digest parsed successfully')
+        return validated
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning('Weekly structured parse failed (%s), falling back to deterministic build', exc)
+        # If LLM fails to return valid JSON, we could fall back to deterministic.
+        # For now, propagate a clear error so the caller knows the LLM failed.
+        raise RuntimeError(f'Weekly LLM failed and no deterministic fallback was configured: {exc}')

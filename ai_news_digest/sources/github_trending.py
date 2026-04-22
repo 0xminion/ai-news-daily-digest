@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 import requests
 from bs4 import BeautifulSoup
 
@@ -101,6 +99,10 @@ def fetch_github_trending(top_n: int | None = None) -> list[dict]:
         repos = _parse_trending(html)
     except Exception as exc:
         logger.warning('GitHub trending fetch failed: %s', exc)
+        return []
+
+    if not repos:
+        logger.info('No trending repos found — GitHub layout may have changed')
         return []
 
     ai_repos = [r for r in repos if _is_ai_repo(r)]

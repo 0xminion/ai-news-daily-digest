@@ -6,6 +6,7 @@ from ai_news_digest.config import RSS_FEEDS, RSS_WINDOW_HOURS, USER_AGENT, logge
 from ai_news_digest.config.keywords import matches_ai_keywords
 from ai_news_digest.utils.retry import with_retry
 from .common import parse_entry_date, within_hours
+from .pages import _is_allowed_url
 
 
 @with_retry(max_attempts=2, delay=2.0, backoff=2.0)
@@ -18,6 +19,9 @@ def fetch_rss_articles(feeds=None) -> list[dict]:
     all_articles = []
     feeds = feeds or RSS_FEEDS
     for source_name, feed_url in feeds:
+        if not _is_allowed_url(feed_url):
+            logger.warning('Blocked SSRF attempt in RSS feed for %s: %s', source_name, feed_url)
+            continue
         try:
             logger.info('Fetching from %s...', source_name)
             feed = _fetch_feed(feed_url, USER_AGENT)
