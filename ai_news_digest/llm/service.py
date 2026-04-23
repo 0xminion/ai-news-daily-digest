@@ -37,6 +37,7 @@ _DEFAULT_CONTEXT_LIMITS = {
     'gpt-4o': 128000,
     'ollama': 256000,
     'minimax': 256000,
+    'kimi': 256000,
     'default': 8192,
 }
 _MAX_DAILY_ARTICLES = 100
@@ -264,11 +265,16 @@ def _structured_to_text(data: dict) -> str:
     # Highlights
     lines.append('Highlights:')
     for idx, h in enumerate(data.get('highlights', []), 1):
-        lines.append(f"{idx}. {h.get('headline', '')}")
+        headline = h.get('headline', '')
+        url = h.get('url', '')
+        if url:
+            lines.append(f"{idx}. [{headline}]({url})")
+        else:
+            lines.append(f"{idx}. {headline}")
         if h.get('summary'):
             lines.append(h['summary'])
-        if h.get('source') and h.get('url'):
-            lines.append(f"Source: {h['source']} ({h['url']})")
+        if h.get('source'):
+            lines.append(f"Source: {h['source']}")
         lines.append('')
 
     # Also worth knowing
@@ -279,7 +285,10 @@ def _structured_to_text(data: dict) -> str:
             title = item.get('headline', '')
             source = item.get('source', '')
             url = item.get('url', '')
-            lines.append(f"- {title} | {source} ({url})")
+            if url:
+                lines.append(f"- [{title}]({url}) ({source})")
+            else:
+                lines.append(f"- {title} ({source})")
         lines.append('')
 
     # Research signals
@@ -293,7 +302,10 @@ def _structured_to_text(data: dict) -> str:
             source = item.get('source', '')
             url = item.get('url', '')
             prefix = f"[{subtype}] " if subtype else ''
-            lines.append(f"- {prefix}{headline} | {source} ({url})")
+            if url:
+                lines.append(f"- {prefix}[{headline}]({url}) ({source})")
+            else:
+                lines.append(f"- {prefix}{headline} ({source})")
         lines.append('')
 
     # Weekly preview
@@ -359,7 +371,7 @@ def _validate_weekly(data: dict) -> dict:
     if missing:
         raise ValueError(f'Missing required keys: {missing}')
     # Ensure list fields
-    for key in ('trending_directions', 'research_focus', 'thinking_prompts',
+    for key in ('trending_directions', 'research_focus',
                 'research_builder_signals', 'missed_but_emerging'):
         if key not in data:
             data[key] = []

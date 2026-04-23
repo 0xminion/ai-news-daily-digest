@@ -20,7 +20,6 @@ def test_render_weekly_highlights_includes_confidence_and_subtypes():
         'research_focus': [{'topic': 'AI Agents', 'confidence': 'High confidence', 'why_now': 'Because', 'what_to_watch': 'Watch'}],
         'research_builder_signals': [{'headline': 'Paper', 'source': 'arXiv AI', 'subtype': 'paper', 'confidence': 'Early signal', 'eli5': 'ELI5: paper'}],
         'missed_but_emerging': [{'headline': 'Small thing', 'source': 'Semafor', 'subtype': 'builder feed', 'confidence': 'Early signal', 'eli5': 'ELI5: small'}],
-        'thinking_prompts': ['What next?'],
     }
     text = render_weekly_highlights(payload)
     assert 'Confidence: High confidence' in text
@@ -28,7 +27,7 @@ def test_render_weekly_highlights_includes_confidence_and_subtypes():
     assert '<a href="https://example.com">Headline</a>' in text
     assert '[builder feed]' in text
     assert '<b>Highlights of the Week</b>' in text
-    assert '<b>Question Prompts</b>' in text
+    assert '<b>Question Prompts</b>' not in text
 
 
 def test_weekly_fallback_keeps_github_trending_in_research_signals():

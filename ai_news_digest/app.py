@@ -77,10 +77,6 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
             }
             for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:2]
         ],
-        'thinking_prompts': [
-            'What would make this daily pattern persist into a real weekly direction?',
-            'Which signal here is real and which one is just short-lived feed noise?',
-        ],
         'research_builder_signals': [
             {
                 'headline': article['title'],

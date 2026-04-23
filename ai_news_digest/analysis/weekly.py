@@ -159,7 +159,6 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
         'highlights_of_the_week': main_summaries[:WEEKLY_HIGHLIGHTS_COUNT],
         'trending_directions': directions[:WEEKLY_DIRECTIONS_COUNT],
         'research_focus': focus,
-        'thinking_prompts': prompts[:WEEKLY_QUESTIONS_COUNT],
         'research_builder_signals': research_summaries[:WEEKLY_RESEARCH_SIGNALS_COUNT],
         'missed_but_emerging': missed_but_emerging,
     }
@@ -174,8 +173,6 @@ def build_weekly_preview(payload: dict) -> str:
     if payload.get('research_focus'):
         focus = payload['research_focus'][0]
         lines.append(f"- Focus: {focus['topic']} — {focus['why_now']} ({focus.get('confidence', 'n/a')})")
-    if payload.get('thinking_prompts'):
-        lines.append(f"- Question: {payload['thinking_prompts'][0]}")
     return '\n'.join(lines)
 
 
@@ -256,10 +253,5 @@ def render_weekly_highlights(payload: dict) -> str:
                 lines.append(f"• [{subtype}] {headline} ({source})")
             lines.append(f"  Confidence: {confidence}")
         lines.append('')
-
-    if payload.get('thinking_prompts'):
-        lines.append('<b>Question Prompts</b>')
-        for q in payload['thinking_prompts']:
-            lines.append(f"• {_esc(q)}")
 
     return '\n'.join(lines)

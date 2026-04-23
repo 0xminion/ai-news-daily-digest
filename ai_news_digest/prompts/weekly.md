@@ -36,7 +36,6 @@ You MUST respond with valid JSON matching this exact schema:
       "what_to_watch": "..."
     }
   ],
-  "thinking_prompts": ["question 1", "question 2"],
   "research_builder_signals": [
     {
       "headline": "...",

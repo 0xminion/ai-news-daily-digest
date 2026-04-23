@@ -203,9 +203,9 @@ def _limit_bullets(raw: str, limit: int) -> str:
 
 
 def _source_match(line: str):
+    """Match a plain source attribution line (URL now lives in the title markdown link)."""
     patterns = [
-        r'^Source:\s*(?P<name>.+?)\s*\((?P<url>https?://\S+?)\)$',
-        r'^Source:\s*(?P<name>.+?)\s*-\s*(?P<url>https?://\S+)$',
+        r'^Source:\s*(?P<name>.+?)$',
     ]
     for pattern in patterns:
         match = re.match(pattern, line)
@@ -215,9 +215,10 @@ def _source_match(line: str):
 
 
 def _bullet_match(line: str):
+    """Match bullet lines like: • [Title](url) (Source) or • [subtype] [Title](url) (Source)"""
     patterns = [
-        r'^(?P<title>.+?)\s*\|\s*(?P<source>.+?)\s*\((?P<url>https?://\S+?)\)$',
-        r'^(?P<title>.+?)\s*\|\s*(?P<source>.+?)\s*-\s*(?P<url>https?://\S+)$',
+        r'^\[?(?P<subtype>\w+)\]?\s+\[(?P<title>.+?)\]\((?P<url>https?://\S+?)\)\s*\((?P<source>.+?)\)$',
+        r'^\[(?P<title>.+?)\]\((?P<url>https?://\S+?)\)\s*\((?P<source>.+?)\)$',
     ]
     for pattern in patterns:
         match = re.match(pattern, line)
@@ -226,15 +227,19 @@ def _bullet_match(line: str):
     return None
 
 
+def _extract_markdown_link(line: str) -> tuple[str, str, str] | None:
+    """Extract the first markdown [text](url) from a line.
+    Returns (prefix, text, url) or None.
+    Prefix is any text before the markdown link (e.g. '1. ').
+    """
+    m = re.search(r'^(?P<prefix>.*?)\[(?P<text>.+?)\]\((?P<url>https?://\S+?)\)(?P<suffix>.*)$', line)
+    if m:
+        return m.group('prefix'), m.group('text'), m.group('url')
+    return None
+
+
 def _split_inline_source(line: str) -> tuple[str, tuple[str, str] | None]:
-    patterns = [
-        r'^(?P<body>.+?)\s+Source:\s*(?P<name>.+?)\s*\((?P<url>https?://\S+?)\)\s*$',
-        r'^(?P<body>.+?)\s+Source:\s*(?P<name>.+?)\s*-\s*(?P<url>https?://\S+)\s*$',
-    ]
-    for pattern in patterns:
-        match = re.match(pattern, line)
-        if match:
-            return match.group('body').strip(), (match.group('name').strip(), match.group('url').strip())
+    """Body text may no longer carry inline sources (source is on its own line now)."""
     return line, None
 
 
@@ -270,11 +275,15 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
         body_lines = []
         source_name = None
         source_url = None
+        # Extract markdown link from title line, e.g. "1. [Title](url)"
+        md_link = _extract_markdown_link(title_line)
+        if md_link:
+            prefix, title_line, source_url = md_link
+            title_line = prefix + title_line
         for line in lines_in[1:]:
             source_match = _source_match(line)
             if source_match:
                 source_name = source_match.group('name').strip()
-                source_url = source_match.group('url').strip()
                 continue
             body, inline_source = _split_inline_source(line)
             if body:
@@ -301,7 +310,7 @@ def _format_bullets(raw: str) -> str:
         lines = [line.rstrip() for line in block.split('\n') if line.strip()]
         if not lines:
             continue
-        first = lines[0].strip().lstrip('- ')
+        first = lines[0].strip().lstrip('- ').lstrip('• ')
         # Normalize escaped brackets: \\[paper\\] → [paper]
         first = first.replace('\\[', '[').replace('\\]', ']')
         pipe = _bullet_match(first)
@@ -309,13 +318,8 @@ def _format_bullets(raw: str) -> str:
             title = _escape(pipe.group('title').strip())
             source = _escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
-            # Pull [subtype] prefix out of title so link is ONLY on headline
-            subtype_match = re.match(r'^(\[\w+\])\s+', title)
-            if subtype_match:
-                subtype_prefix = subtype_match.group(1) + ' '
-                title = title[subtype_match.end():]
-            else:
-                subtype_prefix = ''
+            subtype = pipe.groupdict().get('subtype')
+            subtype_prefix = f"[{_escape(subtype.strip('[]'))}] " if subtype else ''
             rendered = [f'• {subtype_prefix}<a href="{url}">{title}</a> ({source})']
         else:
             rendered = [f'• {_embed_links(_escape(first))}']

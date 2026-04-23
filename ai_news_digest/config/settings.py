@@ -25,7 +25,7 @@ CLUSTER_SIMILARITY_THRESHOLD = int(os.getenv("CLUSTER_SIMILARITY_THRESHOLD", "90
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER") or os.getenv("AGENT_PRIMARY_PROVIDER")
 LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("AGENT_PRIMARY_MODEL") or OLLAMA_MODEL

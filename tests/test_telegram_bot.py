@@ -11,7 +11,7 @@ class TestEscape:
 
 class TestFormatDigest:
     def test_single_message_when_short(self):
-        summary = 'BRIEF RUNDOWN:\nShort summary.\n\nHIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)'
+        summary = 'BRIEF RUNDOWN:\nShort summary.\n\nHIGHLIGHTS:\n1. [Headline](https://example.com)\nSource: Test'
         messages = _format_digest(summary)
         assert len(messages) == 1
         assert 'AI Daily Digest' in messages[0]
@@ -20,7 +20,7 @@ class TestFormatDigest:
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
             'TREND WATCH:\nMAIN NEWS TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\nCOOLING DOWN:\n- OpenAI — fewer mentions\n\n'
-            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)'
+            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nSource: Test'
         )
         messages = _format_digest(summary)
         assert any('Heating Up' in msg for msg in messages)
@@ -30,7 +30,7 @@ class TestFormatDigest:
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
             'TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\n\n'
-            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)'
+            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nSource: Test'
         )
         messages = _format_digest(summary, profile_name='compact')
         assert not any('Heating Up' in msg for msg in messages)
@@ -39,7 +39,7 @@ class TestFormatDigest:
         long_title = 'A' * 5000
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
-            f'HIGHLIGHTS:\n1. {long_title}\nSource: Test (https://example.com)'
+            f'HIGHLIGHTS:\n1. [{long_title}](https://example.com)\nSource: Test'
         )
         messages = _format_digest(summary)
         assert len(messages) > 1
@@ -85,9 +85,9 @@ class TestSendMessage:
     def test_research_bullets_render_without_eli5(self):
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'HIGHLIGHTS:\n1. Headline\nDetails here.\nSource: Test (https://example.com)\n\n'
-            'ALSO WORTH KNOWING:\n- Side item | Test (https://example.com/also)\n\n'
-            'RESEARCH / BUILDER SIGNALS:\n- [paper] Paper title | arXiv AI (https://example.com/paper)'
+            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test\n\n'
+            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- [paper] [Paper title](https://example.com/paper) (arXiv AI)'
         )
         messages = _format_digest(summary)
         # Subtype prefix is plain text, headline is the link, source name is plain
@@ -99,20 +99,19 @@ class TestSendMessage:
         """Backslash-escaped brackets from malformed LLM output get cleaned."""
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'ALSO WORTH KNOWING:\n- Side item | Test (https://example.com/also)\n\n'
-            'RESEARCH / BUILDER SIGNALS:\n- \\[repo\\] claude-context | GitHub (https://github.com/foo/bar)'
+            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- \\[repo\\] [claude-context](https://github.com/foo/bar) (GitHub)'
         )
         messages = _format_digest(summary)
         assert any('[repo]' in msg for msg in messages)
         assert '\\[' not in messages[0]  # escaped brackets removed
 
-
     def test_title_case_headings_and_source_name_links(self):
         summary = (
             'Brief Rundown:\nShort summary.\n\n'
             'Trend Watch:\nMain News Trend Watch:\nHeating Up:\n- OpenAI — more launches\n\n'
-            'Highlights:\n1. Headline\nDetails here.\nSource: Test Source (https://example.com)\n\n'
-            'Also Worth Knowing:\n- Side item | Side Source (https://example.com/also)'
+            'Highlights:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test Source\n\n'
+            'Also Worth Knowing:\n- [Side item](https://example.com/also) (Side Source)'
         )
         messages = _format_digest(summary)
         # Title is linked, source name is plain text
