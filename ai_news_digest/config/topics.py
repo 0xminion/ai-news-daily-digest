@@ -21,3 +21,13 @@ HN_SIGNAL_QUERIES = [
     "OpenAI", "Anthropic", "ChatGPT", "Claude", "Gemini", "LLM",
     "AI agent", "NVIDIA AI", "Mistral AI", "DeepMind",
 ]
+
+RESEARCH_SIGNAL_SOURCES = {
+    'arXiv AI',
+    'arXiv ML',
+    'GitHub Blog AI/ML',
+    'GitHub Trending',
+    'Follow Builders / x',
+    'Follow Builders / podcasts',
+    'Follow Builders / blogs',
+}

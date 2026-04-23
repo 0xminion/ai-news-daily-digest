@@ -10,6 +10,29 @@ import requests
 from ai_news_digest.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, get_destination_profiles, get_telegram_destinations, logger
 
 TELEGRAM_MAX_LENGTH = 4096
+HTML_CHUNK_REPAIR_HEADROOM = 128
+HTML_BALANCE_TAG_RE = re.compile(r'<(/?)(a|b)(?:\s+[^>]*)?>', re.IGNORECASE)
+
+
+def _repair_html_boundary(chunk: str, remaining: str) -> tuple[str, str]:
+    """Close still-open inline tags in this chunk and reopen them in the remainder."""
+    stack: list[tuple[str, str]] = []
+    for match in HTML_BALANCE_TAG_RE.finditer(chunk):
+        is_closing = match.group(1) == '/'
+        tag = match.group(2).lower()
+        token = match.group(0)
+        if not is_closing:
+            stack.append((tag, token))
+            continue
+        for index in range(len(stack) - 1, -1, -1):
+            if stack[index][0] == tag:
+                del stack[index:]
+                break
+    if not stack:
+        return chunk, remaining
+    closing_tags = ''.join(f'</{tag}>' for tag, _ in reversed(stack))
+    reopening_tags = ''.join(token for _, token in stack)
+    return chunk + closing_tags, reopening_tags + remaining
 
 
 def _split_at_safe_boundary(html: str, max_len: int) -> tuple[str, str]:
@@ -364,9 +387,11 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
             current = part.strip()
         else:
             remaining = part.strip()
+            split_limit = max(512, TELEGRAM_MAX_LENGTH - HTML_CHUNK_REPAIR_HEADROOM)
             while remaining:
-                chunk, remaining = _split_at_safe_boundary(remaining, TELEGRAM_MAX_LENGTH)
+                chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
                 if chunk:
+                    chunk, remaining = _repair_html_boundary(chunk, remaining)
                     chunks.append(chunk)
             current = ''
     if current:
@@ -374,9 +399,11 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
             chunks.append(current)
         else:
             remaining = current
+            split_limit = max(512, TELEGRAM_MAX_LENGTH - HTML_CHUNK_REPAIR_HEADROOM)
             while remaining:
-                chunk, remaining = _split_at_safe_boundary(remaining, TELEGRAM_MAX_LENGTH)
+                chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
                 if chunk:
+                    chunk, remaining = _repair_html_boundary(chunk, remaining)
                     chunks.append(chunk)
     return chunks
 
@@ -433,9 +460,11 @@ def _chunk_html(html: str, max_len: int) -> list[str]:
     """Split HTML string into chunks that fit Telegram's message limit without breaking tags."""
     chunks = []
     remaining = html
+    split_limit = max(512, max_len - HTML_CHUNK_REPAIR_HEADROOM)
     while remaining:
-        chunk, remaining = _split_at_safe_boundary(remaining, max_len)
+        chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
         if chunk:
+            chunk, remaining = _repair_html_boundary(chunk, remaining)
             chunks.append(chunk)
         if not remaining:
             break

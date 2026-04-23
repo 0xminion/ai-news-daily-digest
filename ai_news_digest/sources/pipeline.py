@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from ai_news_digest.analysis.clustering import cluster_articles
 from ai_news_digest.analysis.ranking import rank_clustered_articles
@@ -15,7 +16,8 @@ from .pages import fetch_page_articles
 from .rss import fetch_rss_articles
 
 
-RESEARCH_SOURCES = {'arXiv AI', 'arXiv ML', 'GitHub Blog AI/ML', 'GitHub Trending', 'Follow Builders / x', 'Follow Builders / podcasts', 'Follow Builders / blogs'}
+def _utc_today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 def _apply_source_caps(ranked: list[dict], caps: dict[str, int], default_cap: int = 5, limit: int = MAX_ARTICLES_TO_SUMMARIZE) -> list[dict]:
@@ -136,7 +138,7 @@ def fetch_digest_inputs() -> dict:
 
     day_counts = trend_snapshot.get('daily_topic_counts', [])
     save_topic_memory({
-        'saved_at': day_counts[-1].get('date') if day_counts else _utc_now().isoformat()[:10],
+        'saved_at': day_counts[-1].get('date') if day_counts else _utc_today(),
         'topic_counts': day_counts[-1].get('counts', {}) if day_counts else {},
     })
 

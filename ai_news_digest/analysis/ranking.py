@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from ai_news_digest.analysis.trends import RESEARCH_SOURCES, extract_topics
+from ai_news_digest.analysis.trends import extract_topics
 from ai_news_digest.config import SOURCE_TRUST_WEIGHTS
+from ai_news_digest.config.topics import RESEARCH_SIGNAL_SOURCES
 
 ORTHOGONAL_SOURCES = {'arXiv AI', 'arXiv ML', 'GitHub Blog AI/ML'}
 
@@ -24,7 +25,7 @@ def _trend_bucket_for_article(article: dict, trend_snapshot: dict | None) -> dic
     if not trend_snapshot:
         return {}
     source = article.get('source', '')
-    if source in RESEARCH_SOURCES:
+    if source in RESEARCH_SIGNAL_SOURCES:
         return trend_snapshot.get('research_builder', {})
     return trend_snapshot.get('main_news', {})
 

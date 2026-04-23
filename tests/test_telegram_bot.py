@@ -35,6 +35,18 @@ class TestFormatDigest:
         messages = _format_digest(summary, profile_name='compact')
         assert not any('Heating Up' in msg for msg in messages)
 
+    def test_long_highlight_chunks_preserve_balanced_html(self):
+        long_title = 'A' * 5000
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            f'HIGHLIGHTS:\n1. {long_title}\nSource: Test (https://example.com)'
+        )
+        messages = _format_digest(summary)
+        assert len(messages) > 1
+        for message in messages:
+            assert message.count('<b>') == message.count('</b>')
+            assert message.count('<a ') == message.count('</a>')
+
 
 class TestSendDigest:
     @patch('ai_news_digest.output.telegram._send_message')

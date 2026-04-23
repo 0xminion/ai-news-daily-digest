@@ -1,4 +1,6 @@
-from ai_news_digest.analysis.weekly import render_weekly_highlights
+from unittest.mock import patch
+
+from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
 
 
 def test_render_weekly_highlights_includes_confidence_and_subtypes():
@@ -27,3 +29,18 @@ def test_render_weekly_highlights_includes_confidence_and_subtypes():
     assert '[builder feed]' in text
     assert '<b>Highlights of the Week</b>' in text
     assert '<b>Question Prompts</b>' in text
+
+
+def test_weekly_fallback_keeps_github_trending_in_research_signals():
+    payloads = [{
+        'saved_at': '2026-04-22T00:00:00+00:00',
+        'articles': [
+            {'title': 'cool repo', 'source': 'GitHub Trending', 'url': 'https://github.com/x/y', 'summary': 'AI tool repo'},
+            {'title': 'main story', 'source': 'TechCrunch', 'url': 'https://example.com/story', 'summary': 'OpenAI update'},
+        ],
+    }]
+    with patch('ai_news_digest.analysis.weekly.load_recent_report_payloads', return_value=payloads), \
+         patch('ai_news_digest.analysis.weekly.summarize_weekly', side_effect=RuntimeError('force deterministic')):
+        out = build_weekly_highlights_payload(days=7)
+    assert [item['source'] for item in out['highlights_of_the_week']] == ['TechCrunch']
+    assert [item['source'] for item in out['research_builder_signals']] == ['GitHub Trending']

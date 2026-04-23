@@ -25,14 +25,19 @@ OPTIONAL_DIGEST_KEYS = {'trend_watch', 'also_worth_knowing', 'research_builder_s
 # Leave headroom for system instructions, JSON overhead, and response
 _CHARS_PER_TOKEN = 4
 _SYSTEM_OVERHEAD_TOKENS = 512
-# Default model family token limits
+# Default model family token limits.
+# Unknown models are treated as unsupported for this project unless explicitly
+# mapped here or inferred from a 200k+ family match.
+_MIN_REQUIRED_CONTEXT_TOKENS = 200000
 _DEFAULT_CONTEXT_LIMITS = {
     'claude-sonnet': 200000,
     'claude-3.5': 200000,
     'claude-3': 200000,
+    'gpt-4o-mini': 128000,
+    'gpt-4o': 128000,
     'ollama': 256000,
     'minimax': 256000,
-    'default': 200000,
+    'default': 8192,
 }
 _MAX_DAILY_ARTICLES = 100
 
@@ -43,12 +48,24 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _context_limit_for_model(model: str) -> int:
-    """Infer context window from model name, falling back to a safe default."""
+    """Infer context window from model name, falling back to a conservative default."""
     model_lower = (model or '').lower()
     for key, limit in _DEFAULT_CONTEXT_LIMITS.items():
-        if key in model_lower:
+        if key != 'default' and key in model_lower:
             return limit
     return _DEFAULT_CONTEXT_LIMITS['default']
+
+
+def _require_supported_context_window(model: str, declared_context_limit: int | None = None) -> int:
+    """Reject models that do not meet the project's 200k+ context requirement."""
+    context_limit = declared_context_limit or _context_limit_for_model(model)
+    if context_limit < _MIN_REQUIRED_CONTEXT_TOKENS:
+        raise ValueError(
+            'ai-news-daily-digest requires a model with at least '
+            f'{_MIN_REQUIRED_CONTEXT_TOKENS} tokens of context; '
+            f"'{model}' was inferred at {context_limit}."
+        )
+    return context_limit
 
 
 def _truncate_articles_to_fit(
@@ -60,7 +77,6 @@ def _truncate_articles_to_fit(
     max_tokens: int,
 ) -> tuple[list[dict], list[dict]]:
     """Progressively reduce article detail until prompt fits in context window."""
-    max_content_chars = max_tokens * _CHARS_PER_TOKEN
     overhead = template.replace('{{main_articles_json}}', '').replace('{{research_articles_json}}', '').replace('{{trend_context}}', '').replace('{{weekly_preview}}', '')
     overhead_tokens = _estimate_tokens(overhead + trend_context + weekly_preview) + _SYSTEM_OVERHEAD_TOKENS
     remaining_tokens = max(0, max_tokens - overhead_tokens)
@@ -455,7 +471,7 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
         return _quiet_day_message()
     research_articles = research_articles or []
     settings = get_llm_settings()
-    context_limit = _context_limit_for_model(settings['model'])
+    context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
     # Reserve tokens for response generation + prompt overhead
     max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
     prompt = _build_prompt(main_articles, research_articles, trend_snapshot, weekly_preview, max_tokens=max_prompt_tokens)
@@ -517,7 +533,7 @@ def summarize_weekly(archives: list[dict], window_days: int = 7, use_llm: bool =
     if not use_llm:
         raise RuntimeError('Deterministic weekly fallback is removed; use_llm must be True')
     settings = get_llm_settings()
-    context_limit = _context_limit_for_model(settings['model'])
+    context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
     # Reserve tokens for response generation + prompt overhead
     max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
     prompt = _build_weekly_prompt(archives, window_days=window_days, max_tokens=max_prompt_tokens)

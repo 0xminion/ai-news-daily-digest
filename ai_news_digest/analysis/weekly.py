@@ -13,19 +13,10 @@ from ai_news_digest.config import (
     WEEKLY_QUESTIONS_COUNT,
     WEEKLY_RESEARCH_SIGNALS_COUNT,
 )
+from ai_news_digest.config.topics import RESEARCH_SIGNAL_SOURCES
 from ai_news_digest.storage.archive import load_recent_report_payloads
 from ai_news_digest.config import logger
 from ai_news_digest.llm import summarize_weekly
-
-
-RESEARCH_SOURCES = {
-    'arXiv AI',
-    'arXiv ML',
-    'GitHub Blog AI/ML',
-    'Follow Builders / x',
-    'Follow Builders / podcasts',
-    'Follow Builders / blogs',
-}
 
 
 def _signal_subtype(item: dict) -> str:
@@ -93,7 +84,7 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
 
     for payload in payloads:
         for article in payload.get('articles', []):
-            if article.get('source') in RESEARCH_SOURCES:
+            if article.get('source') in RESEARCH_SIGNAL_SOURCES:
                 research_articles.append(article)
             else:
                 main_articles.append(article)

@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from .feeds import RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS
-from .trust import SOURCE_TRUST_WEIGHTS
 
 load_dotenv()
 
@@ -33,6 +32,7 @@ LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("AGENT_PRIMARY_MODEL") or OLLAMA
 LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", str(OLLAMA_TIMEOUT)))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1800"))
+LLM_CONTEXT_LIMIT = int(os.getenv("LLM_CONTEXT_LIMIT", "0")) or None
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -222,6 +222,7 @@ def get_llm_settings() -> dict:
         "api_base": LLM_API_BASE,
         "timeout": LLM_TIMEOUT,
         "max_tokens": LLM_MAX_TOKENS,
+        "context_limit": LLM_CONTEXT_LIMIT,
         "openai_api_key": OPENAI_API_KEY,
         "openrouter_api_key": OPENROUTER_API_KEY,
         "anthropic_api_key": ANTHROPIC_API_KEY,

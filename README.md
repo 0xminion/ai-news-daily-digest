@@ -58,6 +58,7 @@ The LLM returns structured JSON which is validated, then converted to the text f
 
 - Python 3.11+
 - [Ollama](https://ollama.com) installed and running (or another LLM provider)
+- An LLM with **at least 200k context length** (`minimax-m2.7:cloud`, Claude Sonnet, or another 200k+ model)
 - A Telegram bot (create one via [@BotFather](https://t.me/botfather))
 
 ### Setup
@@ -108,7 +109,7 @@ Supported Hermes providers:
 To override auto-detection, set explicit env vars:
 
 ```bash
-LLM_PROVIDER=openai LLM_MODEL=gpt-4o python main.py
+LLM_PROVIDER=anthropic LLM_MODEL=claude-3-5-sonnet-20240620 python main.py
 ```
 
 ### Schedule with cron
@@ -128,8 +129,9 @@ All config via environment variables (`.env` file):
 | `TELEGRAM_CHAT_ID` | Yes | — | Target chat/group ID (comma-separated for multiple) |
 | `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with per-destination bot tokens |
 | `LLM_PROVIDER` | No | auto-detect | `ollama`, `openai`, `openrouter`, `anthropic` |
-| `LLM_MODEL` | No | auto-detect | Model name (e.g. `moonshotai/kimi-k2.6`, `gpt-4o`) |
+| `LLM_MODEL` | No | auto-detect | Model name for a **200k+ context** model (e.g. `claude-3-5-sonnet-20240620`, `minimax-m2.7:cloud`) |
 | `LLM_API_BASE` | No | provider default | Optional custom API base |
+| `LLM_CONTEXT_LIMIT` | No | auto-infer | Optional explicit context length for custom or less-common 200k+ models |
 | `LLM_TIMEOUT` | No | `120` | LLM request timeout in seconds |
 | `LLM_MAX_TOKENS` | No | `1800` | Max tokens for LLM response |
 | `OPENAI_API_KEY` | No | — | Required when `LLM_PROVIDER=openai` |
@@ -212,9 +214,9 @@ docs/                               # Design docs
 ## Tests
 
 ```bash
-pip install pytest
+pip install -r requirements.txt pytest
 python -m pytest -q
-# 68+ tests, all passing
+# currently 70+ tests
 ```
 
 ## LLM Provider Swappability
@@ -228,6 +230,8 @@ The summarizer is model-agnostic. All LLM calls go through `summarize(...) -> st
 - **Hermes auto-detect** — follows your active agent model automatically
 
 Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`, or let Hermes auto-detect handle it. The structured JSON output format is requested from providers that support it. Falls back to raw text if JSON parsing fails. Reasoning models (e.g. kimi-k2.6) are handled by reading the `reasoning` field when `content` is empty.
+
+**Project requirement:** the digest rejects models inferred below 200k context length. For custom 200k+ models that are not in the built-in model map, set `LLM_CONTEXT_LIMIT` explicitly.
 
 ## Error Handling
 

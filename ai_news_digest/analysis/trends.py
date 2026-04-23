@@ -4,16 +4,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from ai_news_digest.config import TREND_LOOKBACK_DAYS, TREND_TOPICS
+from ai_news_digest.config.topics import RESEARCH_SIGNAL_SOURCES
 from ai_news_digest.storage.archive import load_recent_report_payloads
-
-RESEARCH_SOURCES = {
-    'arXiv AI',
-    'arXiv ML',
-    'GitHub Blog AI/ML',
-    'Follow Builders / x',
-    'Follow Builders / podcasts',
-    'Follow Builders / blogs',
-}
 
 
 def _article_text(article: dict) -> str:
@@ -110,15 +102,15 @@ def compute_trend_snapshot(current_articles: list[dict], lookback_days: int = TR
         main_articles = []
         research_articles = []
         for article in payload.get('articles', []):
-            if article.get('source') in RESEARCH_SOURCES:
+            if article.get('source') in RESEARCH_SIGNAL_SOURCES:
                 research_articles.append(article)
             else:
                 main_articles.append(article)
         main_history.append({'saved_at': payload.get('saved_at'), 'articles': main_articles})
         research_history.append({'saved_at': payload.get('saved_at'), 'articles': research_articles})
 
-    main_current = [a for a in current_articles if a.get('source') not in RESEARCH_SOURCES]
-    research_current = [a for a in current_articles if a.get('source') in RESEARCH_SOURCES]
+    main_current = [a for a in current_articles if a.get('source') not in RESEARCH_SIGNAL_SOURCES]
+    research_current = [a for a in current_articles if a.get('source') in RESEARCH_SIGNAL_SOURCES]
 
     combined = _compute_section_snapshot(current_articles, history, lookback_days)
     return {

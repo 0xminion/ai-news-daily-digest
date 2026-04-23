@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -177,14 +179,30 @@ def test_context_limit_claude_200k():
     assert _context_limit_for_model('claude-3-5-sonnet-202406') == 200000
 
 
-def test_context_limit_gpt4o_128k():
+def test_context_limit_gpt4o_is_below_requirement():
     from ai_news_digest.llm.service import _context_limit_for_model
     assert _context_limit_for_model('gpt-4o-mini') == 128000
 
 
-def test_context_limit_unknown_default():
+def test_context_limit_unknown_default_is_rejected():
     from ai_news_digest.llm.service import _context_limit_for_model
     assert _context_limit_for_model('some-random-llm') == 8192
+
+
+def test_require_supported_context_window_rejects_sub_200k_model():
+    from ai_news_digest.llm.service import _require_supported_context_window
+    with pytest.raises(ValueError, match='requires a model with at least 200000 tokens'):
+        _require_supported_context_window('gpt-4o-mini')
+
+
+def test_require_supported_context_window_accepts_200k_model():
+    from ai_news_digest.llm.service import _require_supported_context_window
+    assert _require_supported_context_window('claude-3-5-sonnet-202406') == 200000
+
+
+def test_require_supported_context_window_accepts_explicit_override():
+    from ai_news_digest.llm.service import _require_supported_context_window
+    assert _require_supported_context_window('custom-200k-model', declared_context_limit=200000) == 200000
 
 
 # ---------------------------------------------------------------------------
@@ -259,15 +277,22 @@ def test_clustering_rep_is_best_hn_points():
 
 def test_truncate_articles_fits_prompt():
     from ai_news_digest.llm.service import _truncate_articles_to_fit
-    from ai_news_digest.llm.service import _estimate_tokens
 
     main = [{'title': f'Title {i}', 'summary': 'x' * 1000, 'url': 'https://example.com', 'source': 'Test'} for i in range(50)]
     research = [{'title': f'Research {i}', 'summary': 'y' * 800, 'url': 'https://example.com', 'source': 'arXiv AI'} for i in range(20)]
     template = 'Summary of today\n{{main_articles_json}}\n{{research_articles_json}}\n{{trend_context}}\n{{weekly_preview}}'
     main_out, research_out = _truncate_articles_to_fit(main, research, '', '', template, max_tokens=8192)
-    prompt = template.replace('{{main_articles_json}}', '').replace('{{research_articles_json}}', '')
     # Estimate that total serialized content fits within the token budget
     assert len(main_out) + len(research_out) <= len(main) + len(research)
+
+
+def test_ai_news_digest_llm_imports_cleanly_in_fresh_process():
+    result = subprocess.run(
+        [sys.executable, '-c', 'import ai_news_digest.llm'],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 # ---------------------------------------------------------------------------

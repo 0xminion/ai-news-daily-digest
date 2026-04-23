@@ -114,3 +114,34 @@ class TestFetchArticles:
         assert articles[0]['title'] == 'New AI model released by OpenAI'
         assert isinstance(trend_snapshot, dict)
         assert len(clusters) == 1
+
+    @patch('ai_news_digest.sources.pipeline.save_topic_memory')
+    @patch('ai_news_digest.sources.pipeline.rank_clustered_articles', side_effect=lambda *args, **kwargs: [])
+    @patch('ai_news_digest.sources.pipeline.cluster_articles', side_effect=lambda articles: [])
+    @patch('ai_news_digest.sources.pipeline.load_topic_memory', return_value={})
+    @patch('ai_news_digest.sources.pipeline.compute_trend_snapshot', return_value={'daily_topic_counts': []})
+    @patch('ai_news_digest.sources.pipeline.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
+    @patch('ai_news_digest.sources.pipeline.enrich_articles_with_hn', side_effect=lambda articles: articles)
+    @patch('ai_news_digest.sources.pipeline.fetch_github_trending', return_value=[])
+    @patch('ai_news_digest.sources.pipeline.fetch_orthogonal_signal_articles', return_value=[])
+    @patch('ai_news_digest.sources.pipeline.fetch_page_articles', return_value=[])
+    @patch('ai_news_digest.sources.pipeline.fetch_rss_articles', return_value=[])
+    def test_fetch_articles_handles_empty_day_counts(
+        self,
+        _mock_rss,
+        _mock_pages,
+        _mock_orth,
+        _mock_trending,
+        _mock_hn,
+        _mock_cross_day,
+        _mock_trends,
+        _mock_topic_memory,
+        _mock_cluster,
+        _mock_rank,
+        mock_save_topic_memory,
+    ):
+        fetch_articles()
+        assert mock_save_topic_memory.called
+        saved = mock_save_topic_memory.call_args.args[0]
+        assert saved['saved_at']
+        assert saved['topic_counts'] == {}
