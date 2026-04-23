@@ -14,7 +14,6 @@ from ai_news_digest.config import (
     WEEKLY_RESEARCH_SIGNALS_COUNT,
 )
 from ai_news_digest.storage.archive import load_recent_report_payloads
-from ai_news_digest.llm.service import summarize_weekly
 from ai_news_digest.config import logger
 
 

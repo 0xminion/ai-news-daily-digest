@@ -30,15 +30,11 @@ _DEFAULT_CONTEXT_LIMITS = {
     'claude-sonnet': 200000,
     'claude-3.5': 200000,
     'claude-3': 200000,
-    'gpt-4o': 128000,
-    'gpt-4': 8192,
-    'claude': 100000,
-    'ollama': 8192,
-    'minimax': 8192,
-    'gemma': 8192,
-    'default': 8192,
+    'ollama': 256000,
+    'minimax': 256000,
+    'default': 200000,
 }
-_MAX_DAILY_ARTICLES = 50
+_MAX_DAILY_ARTICLES = 100
 
 
 def _estimate_tokens(text: str) -> int:
@@ -443,8 +439,8 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
     research_articles = research_articles or []
     settings = get_llm_settings()
     context_limit = _context_limit_for_model(settings['model'])
-    # Reserve tokens for response generation
-    max_prompt_tokens = max(0, min(context_limit, settings['max_tokens'] * 2) - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
+    # Reserve tokens for response generation + prompt overhead
+    max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
     prompt = _build_prompt(main_articles, research_articles, trend_snapshot, weekly_preview, max_tokens=max_prompt_tokens)
     logger.info(
         'Sending %d main articles and %d research articles to %s (%s)...',
@@ -505,8 +501,8 @@ def summarize_weekly(archives: list[dict], window_days: int = 7, use_llm: bool =
         raise RuntimeError('Deterministic weekly fallback is removed; use_llm must be True')
     settings = get_llm_settings()
     context_limit = _context_limit_for_model(settings['model'])
-    # Reserve tokens for response generation
-    max_prompt_tokens = max(0, min(context_limit, settings['max_tokens'] * 2) - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
+    # Reserve tokens for response generation + prompt overhead
+    max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
     prompt = _build_weekly_prompt(archives, window_days=window_days, max_tokens=max_prompt_tokens)
     logger.info(
         'Sending %d archive days to weekly prompt (%s / %s)...',
