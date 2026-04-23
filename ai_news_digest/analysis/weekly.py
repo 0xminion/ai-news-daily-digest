@@ -15,6 +15,7 @@ from ai_news_digest.config import (
 )
 from ai_news_digest.storage.archive import load_recent_report_payloads
 from ai_news_digest.config import logger
+from ai_news_digest.llm import summarize_weekly
 
 
 RESEARCH_SOURCES = {

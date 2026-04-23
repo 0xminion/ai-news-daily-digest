@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -35,6 +36,115 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1800"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+# ---------------------------------------------------------------------------
+# Auto-detect Hermes model/provider when no explicit env config is set.
+# This lets the digest follow the same model the agent is currently using.
+# ---------------------------------------------------------------------------
+
+def _resolve_hermes_llm_defaults() -> dict:
+    """Read ~/.hermes/config.yaml and resolve runtime credentials so the
+    digest uses the same model/provider as the active agent session.
+
+    Returns a dict with provider, model, api_base, api_key, key_name.
+    Empty dict when Hermes is unavailable or detection fails.
+    """
+    hermes_home = Path.home() / ".hermes"
+    config_path = hermes_home / "config.yaml"
+    if not config_path.exists():
+        return {}
+    try:
+        text = config_path.read_text(encoding="utf-8")
+        # Minimal YAML-like parser: grab model.default and model.provider
+        provider_match = __import__("re").search(
+            r"^model:\s*\n(?:\s+.*\n)*?\s+provider:\s*(\S+)", text, __import__("re").M
+        )
+        model_match = __import__("re").search(
+            r"^model:\s*\n(?:\s+.*\n)*?\s+default:\s*(\S+)", text, __import__("re").M
+        )
+        provider = (provider_match.group(1) if provider_match else "").strip().lower()
+        model = (model_match.group(1) if model_match else "").strip()
+        if not provider or not model:
+            return {}
+
+        # Inject hermes path so we can import auth module
+        hermes_agent = hermes_home / "hermes-agent"
+        hermes_venv = hermes_agent / "venv" / "lib" / "python3.11" / "site-packages"
+        for p in (str(hermes_venv), str(hermes_home), str(hermes_agent)):
+            if p not in sys.path:
+                sys.path.insert(0, p)
+
+        if provider == "nous":
+            import hermes_cli.auth as auth
+            creds = auth.resolve_nous_runtime_credentials()
+            return {
+                "provider": "openai",
+                "model": model,
+                "api_base": creds.get("base_url", "https://inference-api.nousresearch.com/v1"),
+                "api_key": creds.get("api_key", ""),
+                "key_name": "OPENAI_API_KEY",
+            }
+
+        if provider == "openrouter":
+            import hermes_cli.auth as auth
+            pool = auth.read_credential_pool()
+            for cred in pool.get("openrouter", []):
+                token = cred.get("access_token", "")
+                if token and not token.startswith("***"):
+                    return {
+                        "provider": "openrouter",
+                        "model": model,
+                        "api_base": "https://openrouter.ai/api/v1",
+                        "api_key": token,
+                        "key_name": "OPENROUTER_API_KEY",
+                    }
+
+        if provider == "anthropic":
+            import hermes_cli.auth as auth
+            pool = auth.read_credential_pool()
+            for cred in pool.get("anthropic", []):
+                token = cred.get("access_token", "")
+                if token and not token.startswith("***"):
+                    return {
+                        "provider": "anthropic",
+                        "model": model,
+                        "api_base": "https://api.anthropic.com",
+                        "api_key": token,
+                        "key_name": "ANTHROPIC_API_KEY",
+                    }
+
+        # Ollama / custom providers map back to local Ollama
+        if provider in ("ollama", "custom"):
+            return {
+                "provider": "ollama",
+                "model": model,
+                "api_base": "",
+                "api_key": "",
+                "key_name": None,
+            }
+    except Exception:
+        # Silently ignore — Hermes is optional
+        pass
+    return {}
+
+
+_HERMES_DEFAULTS = _resolve_hermes_llm_defaults()
+
+# Apply Hermes defaults when the user hasn't explicitly configured env vars.
+if _HERMES_DEFAULTS and not LLM_PROVIDER and not os.getenv("AGENT_PRIMARY_PROVIDER"):
+    LLM_PROVIDER = _HERMES_DEFAULTS["provider"]
+    LLM_MODEL = _HERMES_DEFAULTS["model"]
+    if not LLM_API_BASE:
+        LLM_API_BASE = _HERMES_DEFAULTS.get("api_base", "").rstrip("/")
+    key_name = _HERMES_DEFAULTS.get("key_name")
+    if key_name == "OPENAI_API_KEY" and not OPENAI_API_KEY:
+        OPENAI_API_KEY = _HERMES_DEFAULTS["api_key"]
+    elif key_name == "OPENROUTER_API_KEY" and not OPENROUTER_API_KEY:
+        OPENROUTER_API_KEY = _HERMES_DEFAULTS["api_key"]
+    elif key_name == "ANTHROPIC_API_KEY" and not ANTHROPIC_API_KEY:
+        ANTHROPIC_API_KEY = _HERMES_DEFAULTS["api_key"]
+
+# ---------------------------------------------------------------------------
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -102,6 +212,10 @@ def get_llm_settings() -> dict:
             provider, model = p.lower(), m
     provider = provider or "ollama"
     model = model or OLLAMA_MODEL
+    # Some remote models (e.g. kimi-k2.6 via Nous) only support temperature=1.
+    temperature = 0.2
+    if "kimi" in model.lower():
+        temperature = 1.0
     return {
         "provider": provider,
         "model": model,
@@ -112,6 +226,7 @@ def get_llm_settings() -> dict:
         "openrouter_api_key": OPENROUTER_API_KEY,
         "anthropic_api_key": ANTHROPIC_API_KEY,
         "ollama_host": OLLAMA_HOST,
+        "temperature": temperature,
     }
 
 

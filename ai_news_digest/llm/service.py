@@ -378,21 +378,34 @@ def _openai_compatible(prompt: str, settings: dict) -> str:
     if provider == 'openrouter':
         headers['HTTP-Referer'] = 'https://github.com/0xminion/ai-news-daily-digest'
         headers['X-Title'] = 'ai-news-daily-digest'
+    body = {
+        'model': settings['model'],
+        'messages': [
+            {'role': 'system', 'content': 'You create clean, accurate AI news digests. Always respond with valid JSON.'},
+            {'role': 'user', 'content': prompt},
+        ],
+        'temperature': settings.get('temperature', 0.2),
+        'max_tokens': settings['max_tokens'],
+    }
+    # Only request structured JSON when the endpoint supports it.
+    # Some OpenAI-compatible endpoints (e.g. Nous Research) do not support
+    # response_format, so we try without it on the first 400 error.
+    body['response_format'] = {'type': 'json_object'}
     response = requests.post(
         f"{api_base}/chat/completions",
         headers=headers,
-        json={
-            'model': settings['model'],
-            'messages': [
-                {'role': 'system', 'content': 'You create clean, accurate AI news digests. Always respond with valid JSON.'},
-                {'role': 'user', 'content': prompt},
-            ],
-            'temperature': 0.2,
-            'max_tokens': settings['max_tokens'],
-            'response_format': {'type': 'json_object'},
-        },
+        json=body,
         timeout=settings['timeout'],
     )
+    if response.status_code == 400 and 'response_format' in body:
+        # Retry without structured output request
+        del body['response_format']
+        response = requests.post(
+            f"{api_base}/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=settings['timeout'],
+        )
     response.raise_for_status()
     data = response.json()
     choice = data.get('choices', [{}])[0]
@@ -402,6 +415,10 @@ def _openai_compatible(prompt: str, settings: dict) -> str:
     if not message or 'content' not in message:
         raise RuntimeError(f'OpenAI response missing content: {choice.keys()}')
     result = message['content'].strip()
+    # Some reasoning models (e.g. kimi-k2.6) return empty content and put
+    # the response in the reasoning field.
+    if not result and message.get('reasoning'):
+        result = message['reasoning'].strip()
     if not result:
         raise RuntimeError('OpenAI returned empty response')
     return result
@@ -415,7 +432,7 @@ def _anthropic(prompt: str, settings: dict) -> str:
         json={
             'model': settings['model'],
             'max_tokens': settings['max_tokens'],
-            'temperature': 0.2,
+            'temperature': settings.get('temperature', 0.2),
             'system': 'You create clean, accurate AI news digests. Always respond with valid JSON.',
             'messages': [{'role': 'user', 'content': prompt}],
         },
