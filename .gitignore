@@ -4,7 +4,10 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
+build/
 data/
 generated_samples/
 .env
 send_to_*.py
+*.log
+.DS_Store

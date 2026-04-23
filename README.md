@@ -1,20 +1,26 @@
 # AI News Daily Digest
 
-A Python-powered Telegram bot that delivers a curated AI news digest with source clustering, signal-weighted ranking, cross-day deduplication, destination-specific output profiles, and room for future follow-builders integration.
+A Python-powered Telegram bot that delivers a curated AI news digest with source clustering, signal-weighted ranking, cross-day deduplication, destination-specific output profiles, and Hermes agent auto-detection.
 
 **What you get every morning:**
 
-> **AI Daily Digest — March 25, 2026**
+> **AI Daily Digest — April 23, 2026**
 >
-> AI regulation is heating up on multiple fronts — Bernie Sanders is pushing a bill to halt data center construction while a federal judge questioned the Pentagon's attempt to label Anthropic a supply-chain risk. Meanwhile, Arm is building its own AI chips and Kleiner Perkins just raised $3.5B to double down on AI investments.
+> Enterprise AI agents took center stage as OpenAI and Google unveiled new workspace tools designed to automate business tasks, while Google challenged Nvidia's compute dominance with new TPUs. Meanwhile, robotics gained momentum with Tesla's earnings and Sony's ping-pong bot, even as concerns over the environmental impact of gas-powered data centers grew.
 >
-> **Must-Know Highlights:**
-> 1. **New Bernie Sanders AI Safety Bill Would Halt Data Center Construction** — A bipartisan coalition is proposing a moratorium on data center construction...
-> 2. **Pentagon's 'Attempt to Cripple' Anthropic Is Troubling, Judge Says** — ...
+> **Heating Up:**
+> • Google / DeepMind — 9 articles today vs 1.83 avg previously
+> • AI Agents — 9 articles today vs 2.5 avg previously
 >
-> **Also Worth Knowing:**
-> - [Kleiner Perkins raises $3.5B for AI](https://example.com) (TechCrunch)
-> - [Granola hits $1.5B valuation](https://example.com) (TechCrunch)
+> **Highlights**
+> 1. **[OpenAI unveils Workspace Agents...](https://venturebeat.com/...)** — OpenAI introduced agents that perform tasks across Slack, Google Drive, and Salesforce.
+> 2. **[Google doesn't pay the Nvidia tax...](https://venturebeat.com/...)** — Eighth-gen TPUs for training and agentic inference.
+>
+> **Also Worth Knowing**
+> • [Google updates Workspace to make AI your new office intern](https://techcrunch.com/...) (TechCrunch)
+>
+> **Research / Builder Signals**
+> • [repo] [langfuse/langfuse: Open source LLM engineering platform](https://github.com/langfuse/langfuse) (GitHub Trending)
 
 ## How It Works
 
@@ -38,13 +44,11 @@ All external calls (RSS feeds, HN API, page scraping, archive.org, LLM providers
 
 ## Output Format
 
-Telegram output is rendered with normal title-case section headings, not all-caps blocks.
+Telegram output uses normal title-case section headings with clickable headline links:
 
-Links are embedded on the source name in Telegram HTML output, for example:
-
-- Highlights: `Source: <clickable source name>`
-- Also Worth Knowing: `Headline | <clickable source name>`
-- Research / Builder Signals: `Headline | <clickable source name>`
+- **Highlights**: Headline is a clickable link; summary and source follow.
+- **Also Worth Knowing**: `[Headline](url) (Source)`
+- **Research / Builder Signals**: `[paper]` / `[repo]` / `[builder feed]` / `[product / launch]` prefix before the headline link.
 
 The LLM returns structured JSON which is validated, then converted to the text format for Telegram delivery. If the LLM returns non-JSON text, the system falls back gracefully to raw text parsing.
 
@@ -68,9 +72,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Pull an Ollama model
+# Pull an Ollama model (default fallback)
 ollama pull minimax-m2.7:cloud    # recommended — fast, good quality
-# or: ollama pull llama3.1:8b     # free, local-only, slower
+# or: ollama pull gemma4:31b-cloud
 
 # Configure
 cp .env.example .env
@@ -84,24 +88,30 @@ chmod 600 .env
 # Full run — fetches, clusters, ranks, summarizes, sends to Telegram
 python main.py
 
-# Fixture-backed format review (stable samples, no live fetch randomness)
-python review_samples.py
+# Dry run — fetches, summarizes, prints to stdout (no Telegram)
+python full_dry_run.py
 
 # Weekly sample render from archived daily payloads
-python - <<'PY'
-from ai_news_digest.app import build_weekly_sample
-payload, text = build_weekly_sample()
-print(text)
-PY
+python weekly.py
 ```
 
-### Schedule with hermes-agent
+### Hermes Agent Auto-Detection (Recommended)
+
+If you run this inside a Hermes agent session, the digest **automatically uses the same model and provider** as your active agent — no manual `.env` configuration needed for the LLM. It reads `~/.hermes/config.yaml` and resolves credentials at runtime.
+
+Supported Hermes providers:
+- **Nous Research** → maps to OpenAI-compatible API
+- **OpenRouter** → uses pooled credentials
+- **Anthropic** → uses pooled credentials
+- **Ollama / custom** → falls back to local Ollama
+
+To override auto-detection, set explicit env vars:
 
 ```bash
-hermes schedule add --name ai-digest --cmd "python main.py" --cron "0 7 * * *"
+LLM_PROVIDER=openai LLM_MODEL=gpt-4o python main.py
 ```
 
-Or use cron directly:
+### Schedule with cron
 
 ```bash
 crontab -e
@@ -117,13 +127,16 @@ All config via environment variables (`.env` file):
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | Yes | — | Target chat/group ID (comma-separated for multiple) |
 | `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with per-destination bot tokens |
-| `LLM_PROVIDER` | No | `ollama` | LLM provider: `ollama`, `openai`, `openrouter`, or `anthropic` |
-| `LLM_MODEL` | No | `minimax-m2.7:cloud` | Model name |
+| `LLM_PROVIDER` | No | auto-detect | `ollama`, `openai`, `openrouter`, `anthropic` |
+| `LLM_MODEL` | No | auto-detect | Model name (e.g. `moonshotai/kimi-k2.6`, `gpt-4o`) |
 | `LLM_API_BASE` | No | provider default | Optional custom API base |
+| `LLM_TIMEOUT` | No | `120` | LLM request timeout in seconds |
+| `LLM_MAX_TOKENS` | No | `1800` | Max tokens for LLM response |
 | `OPENAI_API_KEY` | No | — | Required when `LLM_PROVIDER=openai` |
 | `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
 | `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
+| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Default Ollama model |
 | `RETENTION_DAYS` | No | `30` | Local daily/weekly report retention window |
 | `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
 | `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |
@@ -131,8 +144,7 @@ All config via environment variables (`.env` file):
 | `HN_ENABLED` | No | `true` | Enable Hacker News signal enrichment |
 | `HN_MIN_POINTS` | No | `15` | Minimum HN points for a story signal |
 | `HN_MIN_COMMENTS` | No | `5` | Minimum HN comments for a story signal |
-| `GITHUB_TRENDING_ENABLED` | No | `true` | Enable GitHub trending repo source |
-| `GITHUB_TRENDING_TOP_N` | No | `3` | Number of trending AI/ML repos to include |
+| `ORTHOGONAL_SIGNALS_ENABLED` | No | `true` | Enable arXiv / GitHub Blog signal feeds |
 | `DATA_DIR` | No | `./data` | Base directory for archived digest copies |
 | `DELIVERY_HOUR` | No | `7` | Hour to deliver (24h format) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
@@ -151,7 +163,7 @@ ai_news_digest/
 ├── app.py                          # Daily + weekly orchestration
 ├── config/
 │   ├── __init__.py                # Public API re-exports
-│   ├── settings.py                # Env loading, runtime settings, destination profiles
+│   ├── settings.py                # Env loading, runtime settings, destination profiles, Hermes auto-detect
 │   ├── catalog.py                 # Re-export hub (backward compat)
 │   ├── feeds.py                   # RSS feeds, page sources, orthogonal feeds, GitHub trending config
 │   ├── keywords.py                # Regex-based AI keyword matching (word-boundary patterns)
@@ -171,12 +183,12 @@ ai_news_digest/
 │   ├── clustering.py              # Canonical story clustering
 │   ├── ranking.py                 # Signal-weighted ranking
 │   ├── trends.py                  # Heating / cooling topic tracking
-│   └── weekly.py                  # Weekly highlights synthesis scaffolding
+│   └── weekly.py                  # Weekly highlights synthesis (LLM + deterministic fallback)
 ├── storage/
 │   ├── archive.py                 # Daily/weekly artifacts, cross-day dedup, retention
-│   └── topic_memory.py            # Persistent topic/entity memory + integration state
+│   └── topic_memory.py            # Persistent topic/entity memory
 ├── llm/
-│   └── service.py                 # Provider routing + structured JSON output + validation
+│   └── service.py                 # Provider routing + structured JSON output + validation + reasoning-model support
 ├── output/
 │   └── telegram.py                # Destination-specific Telegram rendering
 ├── utils/
@@ -187,7 +199,9 @@ ai_news_digest/
 
 main.py                             # Daily entrypoint
 weekly.py                           # Weekly entrypoint
-review_samples.py                   # Sample output generator
+dry_run.py                          # Quick dry run (fetch + sample render, no LLM)
+full_dry_run.py                     # Full pipeline dry run (fetch + summarize + print, no Telegram)
+review_samples.py                   # Sample output generator from fixtures
 examples/
 ├── fixtures/                       # Test payloads
 ├── sample-daily-digest.md
@@ -200,19 +214,20 @@ docs/                               # Design docs
 ```bash
 pip install pytest
 python -m pytest -q
-# 36 tests, all passing
+# 68+ tests, all passing
 ```
 
 ## LLM Provider Swappability
 
 The summarizer is model-agnostic. All LLM calls go through `summarize(...) -> str` in `ai_news_digest/llm/service.py`. Supports:
 
-- **Ollama** — local, free, default
+- **Ollama** — local, free, default fallback
 - **OpenAI** — GPT-4, GPT-4o, etc.
 - **OpenRouter** — access to 100+ models via single API
 - **Anthropic** — Claude models
+- **Hermes auto-detect** — follows your active agent model automatically
 
-Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`. The structured JSON output format is requested from all providers (with `response_format: json_object` for OpenAI, system prompt instruction for others). Falls back to raw text if JSON parsing fails.
+Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`, or let Hermes auto-detect handle it. The structured JSON output format is requested from providers that support it. Falls back to raw text if JSON parsing fails. Reasoning models (e.g. kimi-k2.6) are handled by reading the `reasoning` field when `content` is empty.
 
 ## Error Handling
 
@@ -224,6 +239,8 @@ Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`. The structured JSON output form
 | Ollama/LLM not running | Exits with code 1 and clear error message |
 | LLM returns malformed JSON | Falls back to raw text parsing (backward compatible) |
 | LLM API error | Retries 3x with exponential backoff (5s → 10s → 20s) |
+| LLM prompt too large | Token guard progressively truncates articles to fit context window |
+| Reasoning model returns empty content | Falls back to `reasoning` field automatically |
 | < 5 AI articles found | Delivers what's available with a "quiet day" note |
 | Telegram send fails | Retries once, then exits with code 1 |
 | Telegram 403 | Logs that bot was removed from chat, no retry |
@@ -236,7 +253,7 @@ Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`. The structured JSON output form
 - **Prompt injection** — article content is sanitized before passing to the LLM (regex strips common injection patterns)
 - **No credential exposure** — API keys are read from environment, never logged or passed to external services except their intended provider
 
-## Roadmap (v2)
+## Roadmap
 
 - [x] Trend tracking across days (what's heating up vs cooling down)
 - [x] Multi-chat support (multiple Telegram groups)
@@ -254,6 +271,9 @@ Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`. The structured JSON output form
 - [x] Exponential backoff retry on all external calls
 - [x] Config split into modular files (feeds, keywords, topics, trust)
 - [x] SSRF hardening (private IP blocking)
+- [x] Token guard (context window truncation)
+- [x] Hermes agent auto-detection
+- [x] Reasoning-model compatibility (kimi-k2.6)
 - [ ] Weekly highlights full production CLI
 - [ ] follow-builders deep integration
 - [ ] Content enrichment for top articles (full-text fetch before LLM)

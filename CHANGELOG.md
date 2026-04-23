@@ -1,9 +1,22 @@
 # Changelog
 
+## 2026-04-23
+
+### Added
+- **Hermes auto-detection**: When no explicit `LLM_PROVIDER`/`LLM_MODEL` env vars are set, the pipeline reads `~/.hermes/config.yaml` and resolves runtime credentials so the digest automatically follows the same model/provider as the active agent session. Supports Nous Research, OpenRouter, Anthropic, and Ollama/custom providers.
+- **kimi-k2.6 compatibility**: Added reasoning-model support — detects empty `content` responses and falls back to `reasoning` field. Auto-sets `temperature=1` for kimi models. Gracefully handles unsupported `response_format` by retrying without it.
+- **Token guard**: Prompts are automatically truncated to fit within the target model's context window, preventing overflow errors on large article batches.
+
+### Fixed
+- Fixed missing `summarize_weekly` import in `analysis/weekly.py` that broke weekly LLM synthesis.
+- Removed hardcoded `minimax-m2.7:cloud` fallback from `dry_run.py` and `full_dry_run.py` so scripts respect env/.env/Hermes config.
+- Fixed Telegram renderer to embed links on headlines instead of source names, matching modern Telegram formatting preferences.
+- Removed dead `send_to_chat.py` script.
+
 ## 2026-04-10
 
 ### Added
-- Added Fortune AI section as a new source via page scraping: https://fortune.com/section/artificial-intelligence/
+- Added Fortune AI section as a new source via page scraping.
 - Added `cloudscraper` and `beautifulsoup4` dependencies for blocked page retrieval and HTML extraction.
 - Added archive fallback support using the Wayback Machine and archive.ph/archive.today when pages are blocked, unavailable, or subscription-gated.
 - Added `storage.py` to save a local copy of each daily report.
