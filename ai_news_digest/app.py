@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, build_weekly_preview, render_weekly_highlights
-from ai_news_digest.config import RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
+from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import summarize
 from ai_news_digest.output.telegram import _format_digest, _send_message, send_digest, send_weekly_report
 from ai_news_digest.sources.pipeline import fetch_digest_inputs
@@ -21,8 +21,10 @@ def _check_ollama() -> None:
         logger.warning('Cannot reach Ollama at %s (%s) — summarization may fail.', llm['ollama_host'], exc)
 
 
-def run_daily() -> int:
-    validate_config()
+def run_daily(deliver: bool | None = None) -> int:
+    if deliver is None:
+        deliver = OUTPUT_MODE != "stdout"
+    validate_config(skip_telegram=not deliver)
     _check_ollama()
     payload = fetch_digest_inputs()
     weekly_payload = _ensure_weekly_payload(payload)
@@ -40,8 +42,14 @@ def run_daily() -> int:
         trends=payload['trend_snapshot'],
         clusters=payload['main_clusters'] + payload['research_clusters'],
     )
-    ok = send_digest(summary, destinations=get_telegram_destinations())
-    return 0 if ok else 1
+    if deliver:
+        ok = send_digest(summary, destinations=get_telegram_destinations())
+        return 0 if ok else 1
+    # stdout mode — print formatted digest without Telegram
+    messages = _format_digest(summary)
+    for msg in messages:
+        print(msg)
+    return 0
 
 
 def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
@@ -168,11 +176,14 @@ def build_weekly_sample() -> tuple[dict, str]:
     return payload, text
 
 
-def run_weekly(deliver: bool = True) -> int:
-    validate_config()
+def run_weekly(deliver: bool | None = None) -> int:
+    if deliver is None:
+        deliver = OUTPUT_MODE != "stdout"
+    validate_config(skip_telegram=not deliver)
     payload, text = build_weekly_sample()
     save_weekly_report(payload, text)
     if deliver:
         ok = send_weekly_report(text, destinations=get_telegram_destinations())
         return 0 if ok else 1
+    print(text)
     return 0

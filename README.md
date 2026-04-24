@@ -86,14 +86,15 @@ chmod 600 .env
 ### Run
 
 ```bash
-# Full run — fetches, clusters, ranks, summarizes, sends to Telegram
+# Default — fetches, clusters, ranks, summarizes, prints to stdout (no Telegram setup needed)
 python main.py
 
-# Dry run — fetches, summarizes, prints to stdout (no Telegram)
-python full_dry_run.py
+# Deliver to Telegram (requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+python main.py --telegram
 
-# Weekly sample render from archived daily payloads
-python weekly.py
+# Same for weekly
+python weekly.py          # stdout
+python weekly.py --telegram
 ```
 
 ### Hermes Agent Auto-Detection (Recommended)
@@ -125,8 +126,9 @@ All config via environment variables (`.env` file):
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | Yes | — | Target chat/group ID (comma-separated for multiple) |
+| `OUTPUT_MODE` | No | `stdout` | `stdout` prints digest to console; `telegram` delivers via Telegram bot |
+| `TELEGRAM_BOT_TOKEN` | When `OUTPUT_MODE=telegram` | — | Bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | When `OUTPUT_MODE=telegram` | — | Target chat/group ID (comma-separated for multiple) |
 | `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with per-destination bot tokens |
 | `LLM_PROVIDER` | No | auto-detect | `ollama`, `openai`, `openrouter`, `anthropic` |
 | `LLM_MODEL` | No | auto-detect | Model name for a **200k+ context** model (e.g. `claude-3-5-sonnet-20240620`, `minimax-m2.7:cloud`) |

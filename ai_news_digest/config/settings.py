@@ -150,6 +150,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TELEGRAM_DESTINATIONS_JSON = os.getenv("TELEGRAM_DESTINATIONS_JSON", "")
 
+OUTPUT_MODE = os.getenv("OUTPUT_MODE", "stdout").strip().lower()
+
 DELIVERY_HOUR = int(os.getenv("DELIVERY_HOUR", "7"))
 
 HN_ENABLED = os.getenv("HN_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
@@ -302,14 +304,15 @@ def get_follow_builders_config() -> dict:
     }
 
 
-def validate_config() -> None:
+def validate_config(skip_telegram: bool = False) -> None:
     _ensure_directories()
-    destinations = get_telegram_destinations()
-    if not destinations:
-        raise ValueError("Missing Telegram destination configuration. Set TELEGRAM_CHAT_ID or TELEGRAM_DESTINATIONS_JSON.")
-    missing_tokens = [dest["name"] for dest in destinations if not dest.get("bot_token")]
-    if missing_tokens:
-        raise ValueError(f"Missing bot token for destinations: {', '.join(missing_tokens)}.")
+    if not skip_telegram and OUTPUT_MODE != "stdout":
+        destinations = get_telegram_destinations()
+        if not destinations:
+            raise ValueError("Missing Telegram destination configuration. Set TELEGRAM_CHAT_ID or TELEGRAM_DESTINATIONS_JSON.")
+        missing_tokens = [dest["name"] for dest in destinations if not dest.get("bot_token")]
+        if missing_tokens:
+            raise ValueError(f"Missing bot token for destinations: {', '.join(missing_tokens)}.")
     llm = get_llm_settings()
     provider_keys = {
         "openai": ("OPENAI_API_KEY", OPENAI_API_KEY),

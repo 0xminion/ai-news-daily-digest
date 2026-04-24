@@ -38,5 +38,13 @@ class TestValidateConfig:
     def test_missing_required_vars(self, _mock_load_dotenv):
         import ai_news_digest.config.settings as settings
         importlib.reload(settings)
+        # Default OUTPUT_MODE=stdout does not require Telegram
+        settings.validate_config()
+
+    @patch('dotenv.load_dotenv')
+    @patch.dict(os.environ, {"OUTPUT_MODE": "telegram"}, clear=True)
+    def test_telegram_mode_missing_vars(self, _mock_load_dotenv):
+        import ai_news_digest.config.settings as settings
+        importlib.reload(settings)
         with pytest.raises(ValueError, match='Missing Telegram destination configuration'):
-            settings.validate_config()
+            settings.validate_config(skip_telegram=False)
