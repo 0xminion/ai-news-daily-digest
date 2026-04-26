@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, build_weekly_preview, render_weekly_highlights
+from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
 from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import summarize
 from ai_news_digest.output.telegram import _format_digest, _send_message, send_digest, send_weekly_report
@@ -27,13 +27,9 @@ def run_daily(deliver: bool | None = None) -> int:
     validate_config(skip_telegram=not deliver)
     _check_ollama()
     payload = fetch_digest_inputs()
-    weekly_payload = _ensure_weekly_payload(payload)
-    weekly_preview = build_weekly_preview(weekly_payload)
     summary = summarize(
         payload['main_articles'],
-        trend_snapshot=payload['trend_snapshot'],
         research_articles=payload['research_articles'],
-        weekly_preview=weekly_preview,
     )
     prune_old_reports()
     save_daily_report(
@@ -55,7 +51,7 @@ def run_daily(deliver: bool | None = None) -> int:
 def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
     return {
         'window_days': 7,
-        'executive_summary': 'This fallback weekly view is built from today’s run so you can inspect structure before a full week of archives exists.',
+        'executive_summary': 'This fallback weekly view is built from today\u2019s run so you can inspect structure before a full week of archives exists.',
         'highlights_of_the_week': [
             {
                 'headline': article['title'],
@@ -67,24 +63,8 @@ def _fallback_weekly_payload_from_daily(payload: dict) -> dict:
             }
             for article in payload.get('main_articles', [])[:3]
         ],
-        'trending_directions': [
-            {
-                'topic': item['topic'],
-                'direction': 'rising',
-                'confidence': 'Medium confidence',
-                'note': f"Current main-news heat: {item['current_count']} article(s) today.",
-            }
-            for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:3]
-        ],
-        'research_focus': [
-            {
-                'topic': item['topic'],
-                'confidence': 'Medium confidence',
-                'why_now': f"This main-news topic is showing active daily momentum ({item['current_count']} today).",
-                'what_to_watch': 'Watch whether repeated coverage becomes a multi-day cluster with broader source support.',
-            }
-            for item in payload.get('trend_snapshot', {}).get('main_news', {}).get('heating_up', [])[:2]
-        ],
+        'trending_directions': [],
+        'research_focus': [],
         'research_builder_signals': [
             {
                 'headline': article['title'],
@@ -120,36 +100,18 @@ def _ensure_weekly_payload(payload: dict) -> dict:
 
 def build_daily_sample() -> tuple[dict, str]:
     payload = fetch_digest_inputs()
-    weekly_payload = _ensure_weekly_payload(payload)
-    weekly_preview = build_weekly_preview(weekly_payload)
-    text = _render_sample_daily(payload, weekly_preview)
+    text = _render_sample_daily(payload)
     return payload, text
 
 
-def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
+def _render_sample_daily(payload: dict) -> str:
     main_articles = payload['main_articles']
     research_articles = payload['research_articles']
-    trend = payload['trend_snapshot']
     lines = [
         'BRIEF RUNDOWN:',
-        'This is a layout/sample render for structure checking. Main news stays separate from research/builder signals, and the weekly preview is short by design.',
+        'This is a layout/sample render for structure checking. Main news stays separate from research/builder signals.',
         '',
     ]
-    main_trend = trend.get('main_news', {})
-    research_trend = trend.get('research_builder', {})
-    if main_trend.get('heating_up') or main_trend.get('cooling_down') or research_trend.get('heating_up') or research_trend.get('cooling_down'):
-        lines.append('TREND WATCH:')
-        if main_trend.get('heating_up') or main_trend.get('cooling_down'):
-            lines.append('MAIN NEWS TREND WATCH:')
-            if main_trend.get('heating_up'):
-                lines.append('HEATING UP:')
-                for item in main_trend['heating_up'][:3]:
-                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
-            if main_trend.get('cooling_down'):
-                lines.append('COOLING DOWN:')
-                for item in main_trend['cooling_down'][:2]:
-                    lines.append(f"- {item['topic']} — {item['current_count']} article(s) today vs {item['previous_average']} avg")
-        lines.append('')
     lines.append('HIGHLIGHTS:')
     for idx, article in enumerate(main_articles[:5], start=1):
         lines.append(f"{idx}. {article['title']}")
@@ -165,8 +127,6 @@ def _render_sample_daily(payload: dict, weekly_preview: str) -> str:
         for article in research_articles[:RESEARCH_SIGNALS_COUNT]:
             subtype = article.get('subtype', 'signal')
             lines.append(f"- [{subtype}] {article['title']} | {article['source']} ({article['url']})")
-    lines.append('')
-    lines.extend(weekly_preview.split('\n'))
     return '\n'.join(lines)
 
 

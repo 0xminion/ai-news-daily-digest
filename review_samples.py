@@ -21,7 +21,7 @@ def main() -> int:
     daily_payload = _load_json('daily_payload.json')
     weekly_payload = _load_json('weekly_payload.json')
 
-    daily_text = _render_sample_daily(daily_payload, build_weekly_preview(weekly_payload))
+    daily_text = _render_sample_daily(daily_payload)
     weekly_text = render_weekly_highlights(weekly_payload)
     default_chunks = _format_digest(daily_text, profile_name='default')
     compact_chunks = _format_digest(daily_text, profile_name='compact')

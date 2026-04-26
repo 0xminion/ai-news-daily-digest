@@ -11,7 +11,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 for n in ("urllib3", "requests", "httpx", "httpcore"):
     logging.getLogger(n).setLevel(logging.WARNING)
 
-from ai_news_digest.app import _ensure_weekly_payload, build_weekly_preview
 from ai_news_digest.config import validate_config, get_telegram_destinations
 from ai_news_digest.llm import summarize
 from ai_news_digest.output.telegram import _format_digest
@@ -21,14 +20,10 @@ from ai_news_digest.storage.archive import prune_old_reports
 validate_config()
 
 payload = fetch_digest_inputs()
-weekly_payload = _ensure_weekly_payload(payload)
-weekly_preview = build_weekly_preview(weekly_payload)
 
 summary = summarize(
     payload['main_articles'],
-    trend_snapshot=payload['trend_snapshot'],
     research_articles=payload['research_articles'],
-    weekly_preview=weekly_preview,
 )
 
 messages = _format_digest(summary)

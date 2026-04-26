@@ -281,7 +281,7 @@ def test_truncate_articles_fits_prompt():
     main = [{'title': f'Title {i}', 'summary': 'x' * 1000, 'url': 'https://example.com', 'source': 'Test'} for i in range(50)]
     research = [{'title': f'Research {i}', 'summary': 'y' * 800, 'url': 'https://example.com', 'source': 'arXiv AI'} for i in range(20)]
     template = 'Summary of today\n{{main_articles_json}}\n{{research_articles_json}}\n{{trend_context}}\n{{weekly_preview}}'
-    main_out, research_out = _truncate_articles_to_fit(main, research, '', '', template, max_tokens=8192)
+    main_out, research_out = _truncate_articles_to_fit(main, research, template, max_tokens=8192)
     # Estimate that total serialized content fits within the token budget
     assert len(main_out) + len(research_out) <= len(main) + len(research)
 

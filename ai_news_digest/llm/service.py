@@ -6,7 +6,6 @@ from pathlib import Path
 
 import requests
 
-from ai_news_digest.analysis.trends import format_trend_context
 from ai_news_digest.config import get_llm_settings, logger
 from ai_news_digest.utils.retry import with_retry
 
@@ -72,14 +71,12 @@ def _require_supported_context_window(model: str, declared_context_limit: int | 
 def _truncate_articles_to_fit(
     main_articles: list[dict],
     research_articles: list[dict],
-    trend_context: str,
-    weekly_preview: str,
     template: str,
     max_tokens: int,
 ) -> tuple[list[dict], list[dict]]:
     """Progressively reduce article detail until prompt fits in context window."""
-    overhead = template.replace('{{main_articles_json}}', '').replace('{{research_articles_json}}', '').replace('{{trend_context}}', '').replace('{{weekly_preview}}', '')
-    overhead_tokens = _estimate_tokens(overhead + trend_context + weekly_preview) + _SYSTEM_OVERHEAD_TOKENS
+    overhead = template.replace('{{main_articles_json}}', '').replace('{{research_articles_json}}', '')
+    overhead_tokens = _estimate_tokens(overhead) + _SYSTEM_OVERHEAD_TOKENS
     remaining_tokens = max(0, max_tokens - overhead_tokens)
     remaining_chars = remaining_tokens * _CHARS_PER_TOKEN
 
@@ -181,17 +178,14 @@ def _serialize_articles(articles: list[dict]) -> str:
     )
 
 
-def _build_prompt(main_articles: list[dict], research_articles: list[dict], trend_snapshot: dict | None = None, weekly_preview: str = '', max_tokens: int | None = None) -> str:
+def _build_prompt(main_articles: list[dict], research_articles: list[dict], max_tokens: int | None = None) -> str:
     """Build prompt with double-brace markers so article JSON never collides with template tokens."""
-    trend_context = format_trend_context(trend_snapshot or {}) or 'No strong cross-day topic shifts detected.'
     template = _load_prompt_template('daily')
     if max_tokens is not None:
         # Token guard: cap articles before serializing
         main_articles, research_articles = _truncate_articles_to_fit(
             main_articles,
             research_articles,
-            trend_context,
-            weekly_preview or 'No weekly preview available.',
             template,
             max_tokens,
         )
@@ -199,8 +193,6 @@ def _build_prompt(main_articles: list[dict], research_articles: list[dict], tren
         template
         .replace('{{main_articles_json}}', _serialize_articles(main_articles))
         .replace('{{research_articles_json}}', _serialize_articles(research_articles))
-        .replace('{{trend_context}}', trend_context)
-        .replace('{{weekly_preview}}', weekly_preview or 'No weekly preview available.')
     )
 
 
@@ -228,7 +220,7 @@ def _validate_digest(data: dict) -> dict:
         data['highlights'] = [{'headline': data['highlights'], 'summary': '', 'source': '', 'url': ''}]
 
     # Ensure lists for array fields
-    for key in ['also_worth_knowing', 'research_builder_signals', 'weekly_preview']:
+    for key in ['also_worth_knowing', 'research_builder_signals']:
         if key not in data:
             data[key] = []
         elif not isinstance(data[key], list):
@@ -454,7 +446,7 @@ def _anthropic(prompt: str, settings: dict) -> str:
 # Main summarize function
 # ---------------------------------------------------------------------------
 
-def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, research_articles: list[dict] | None = None, weekly_preview: str = '') -> str:
+def summarize(main_articles: list[dict], research_articles: list[dict] | None = None) -> str:
     if not main_articles and not research_articles:
         return _quiet_day_message()
     research_articles = research_articles or []
@@ -462,7 +454,7 @@ def summarize(main_articles: list[dict], trend_snapshot: dict | None = None, res
     context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
     # Reserve tokens for response generation + prompt overhead
     max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
-    prompt = _build_prompt(main_articles, research_articles, trend_snapshot, weekly_preview, max_tokens=max_prompt_tokens)
+    prompt = _build_prompt(main_articles, research_articles, max_tokens=max_prompt_tokens)
     logger.info(
         'Sending %d main articles and %d research articles to %s (%s)...',
         len(main_articles),
