@@ -19,7 +19,7 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent / 'prompts'
 
 # Expected top-level keys in structured output
 REQUIRED_DIGEST_KEYS = {'brief_rundown', 'highlights'}
-OPTIONAL_DIGEST_KEYS = {'trend_watch', 'also_worth_knowing', 'research_builder_signals', 'weekly_preview'}
+OPTIONAL_DIGEST_KEYS = {'also_worth_knowing', 'research_builder_signals'}
 
 # Token guard constants — rough ~4 chars/token for English
 # Leave headroom for system instructions, JSON overhead, and response
@@ -245,23 +245,6 @@ def _structured_to_text(data: dict) -> str:
     lines.append(data.get('brief_rundown', ''))
     lines.append('')
 
-    # Trend watch
-    trend = data.get('trend_watch')
-    if trend and isinstance(trend, dict):
-        main_trend = trend.get('main_news', {})
-        if main_trend.get('heating_up') or main_trend.get('cooling_down'):
-            lines.append('Trend Watch:')
-            lines.append('Main News Trend Watch:')
-            if main_trend.get('heating_up'):
-                lines.append('Heating Up:')
-                for item in main_trend['heating_up']:
-                    lines.append(f"- {item.get('topic', '')} — {item.get('why', '')}")
-            if main_trend.get('cooling_down'):
-                lines.append('Cooling Down:')
-                for item in main_trend['cooling_down']:
-                    lines.append(f"- {item.get('topic', '')} — {item.get('why', '')}")
-            lines.append('')
-
     # Highlights
     lines.append('Highlights:')
     for idx, h in enumerate(data.get('highlights', []), 1):
@@ -307,13 +290,6 @@ def _structured_to_text(data: dict) -> str:
             else:
                 lines.append(f"- {prefix}{headline} ({source})")
         lines.append('')
-
-    # Weekly preview
-    weekly = data.get('weekly_preview', [])
-    if weekly:
-        lines.append('Weekly Preview:')
-        for bullet in weekly:
-            lines.append(f"- {bullet}")
 
     return '\n'.join(lines)
 

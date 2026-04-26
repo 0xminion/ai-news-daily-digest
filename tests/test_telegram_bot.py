@@ -16,25 +16,6 @@ class TestFormatDigest:
         assert len(messages) == 1
         assert 'AI Daily Digest' in messages[0]
 
-    def test_trend_watch_is_rendered(self):
-        summary = (
-            'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'TREND WATCH:\nMAIN NEWS TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\nCOOLING DOWN:\n- OpenAI — fewer mentions\n\n'
-            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nSource: Test'
-        )
-        messages = _format_digest(summary)
-        assert any('Heating Up' in msg for msg in messages)
-        assert any('Anthropic' in msg for msg in messages)
-
-    def test_compact_profile_hides_trends(self):
-        summary = (
-            'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'TREND WATCH:\nHEATING UP:\n- Anthropic — more launches\n\n'
-            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nSource: Test'
-        )
-        messages = _format_digest(summary, profile_name='compact')
-        assert not any('Heating Up' in msg for msg in messages)
-
     def test_long_highlight_chunks_preserve_balanced_html(self):
         long_title = 'A' * 5000
         summary = (
@@ -46,6 +27,43 @@ class TestFormatDigest:
         for message in messages:
             assert message.count('<b>') == message.count('</b>')
             assert message.count('<a ') == message.count('</a>')
+
+    def test_research_bullets_render_without_eli5(self):
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test\n\n'
+            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- [paper] [Paper title](https://example.com/paper) (arXiv AI)'
+        )
+        messages = _format_digest(summary)
+        # Subtype prefix is plain text, headline is the link, source name is plain
+        assert any('[paper]' in msg for msg in messages)
+        assert any('<a href="https://example.com/paper">Paper title</a>' in msg for msg in messages)
+        assert any('(arXiv AI)' in msg for msg in messages)
+
+    def test_escaped_brackets_researh_items(self):
+        """Backslash-escaped brackets from malformed LLM output get cleaned."""
+        summary = (
+            'BRIEF RUNDOWN:\nShort summary.\n\n'
+            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
+            'RESEARCH / BUILDER SIGNALS:\n- \\[repo\\] [claude-context](https://github.com/foo/bar) (GitHub)'
+        )
+        messages = _format_digest(summary)
+        assert any('[repo]' in msg for msg in messages)
+        assert '\\[' not in messages[0]  # escaped brackets removed
+
+    def test_title_case_headings_and_source_name_links(self):
+        summary = (
+            'Brief Rundown:\nShort summary.\n\n'
+            'Highlights:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test Source\n\n'
+            'Also Worth Knowing:\n- [Side item](https://example.com/also) (Side Source)'
+        )
+        messages = _format_digest(summary)
+        # Title is linked, source name is plain text
+        assert any('<b><a href="https://example.com">1. Headline</a></b>' in msg for msg in messages)
+        assert any('Source: Test Source' in msg for msg in messages)
+        assert any('<a href="https://example.com/also">Side item</a> (Side Source)' in msg for msg in messages)
+        assert any('Highlights' in msg for msg in messages)
 
 
 class TestSendDigest:
@@ -80,45 +98,6 @@ class TestSendMessage:
         mock_post.side_effect = [MagicMock(status_code=500, text='Server error'), MagicMock(status_code=200)]
         assert _send_message('Hello', bot_token='abc', chat_id='123') is True
         assert mock_post.call_count == 2
-
-
-    def test_research_bullets_render_without_eli5(self):
-        summary = (
-            'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'HIGHLIGHTS:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test\n\n'
-            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
-            'RESEARCH / BUILDER SIGNALS:\n- [paper] [Paper title](https://example.com/paper) (arXiv AI)'
-        )
-        messages = _format_digest(summary)
-        # Subtype prefix is plain text, headline is the link, source name is plain
-        assert any('[paper]' in msg for msg in messages)
-        assert any('<a href="https://example.com/paper">Paper title</a>' in msg for msg in messages)
-        assert any('(arXiv AI)' in msg for msg in messages)
-
-    def test_escaped_brackets_researh_items(self):
-        """Backslash-escaped brackets from malformed LLM output get cleaned."""
-        summary = (
-            'BRIEF RUNDOWN:\nShort summary.\n\n'
-            'ALSO WORTH KNOWING:\n- [Side item](https://example.com/also) (Test)\n\n'
-            'RESEARCH / BUILDER SIGNALS:\n- \\[repo\\] [claude-context](https://github.com/foo/bar) (GitHub)'
-        )
-        messages = _format_digest(summary)
-        assert any('[repo]' in msg for msg in messages)
-        assert '\\[' not in messages[0]  # escaped brackets removed
-
-    def test_title_case_headings_and_source_name_links(self):
-        summary = (
-            'Brief Rundown:\nShort summary.\n\n'
-            'Trend Watch:\nMain News Trend Watch:\nHeating Up:\n- OpenAI — more launches\n\n'
-            'Highlights:\n1. [Headline](https://example.com)\nDetails here.\nSource: Test Source\n\n'
-            'Also Worth Knowing:\n- [Side item](https://example.com/also) (Side Source)'
-        )
-        messages = _format_digest(summary)
-        # Title is linked, source name is plain text
-        assert any('<b><a href="https://example.com">1. Headline</a></b>' in msg for msg in messages)
-        assert any('Source: Test Source' in msg for msg in messages)
-        assert any('<a href="https://example.com/also">Side item</a> (Side Source)' in msg for msg in messages)
-        assert any('Highlights' in msg for msg in messages)
 
 
 class TestEmbedLinks:

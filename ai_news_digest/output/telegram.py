@@ -72,14 +72,9 @@ def _split_at_safe_boundary(html: str, max_len: int) -> tuple[str, str]:
 
 SECTION_MARKERS = {
     'brief_rundown': 'Brief Rundown:',
-    'trend_watch': 'Trend Watch:',
-    'main_news_trend_watch': 'Main News Trend Watch:',
-    'heating_up': 'Heating Up:',
-    'cooling_down': 'Cooling Down:',
     'highlights': 'Highlights:',
     'also_worth_knowing': 'Also Worth Knowing:',
     'research_builder_signals': 'Research / Builder Signals:',
-    'weekly_preview': 'Weekly Preview:',
 }
 
 
@@ -91,14 +86,9 @@ def _normalize_heading_variants(text: str) -> str:
     normalized = text
     pattern_map = {
         r'^\s*brief\s+rundown:\s*$': SECTION_MARKERS['brief_rundown'],
-        r'^\s*trend\s+watch:\s*$': SECTION_MARKERS['trend_watch'],
-        r'^\s*main\s+news\s+trend\s+watch:\s*$': SECTION_MARKERS['main_news_trend_watch'],
-        r'^\s*heating\s+up:\s*$': SECTION_MARKERS['heating_up'],
-        r'^\s*cooling\s+down:\s*$': SECTION_MARKERS['cooling_down'],
         r'^\s*highlights:\s*$': SECTION_MARKERS['highlights'],
         r'^\s*also\s+worth\s+knowing:\s*$': SECTION_MARKERS['also_worth_knowing'],
         r'^\s*research\s*/\s*builder\s+signals:\s*$': SECTION_MARKERS['research_builder_signals'],
-        r'^\s*weekly\s+preview:\s*$': SECTION_MARKERS['weekly_preview'],
     }
     lines = []
     for line in normalized.split('\n'):
@@ -115,22 +105,18 @@ def _normalize_heading_variants(text: str) -> str:
 def _parse_summary_sections(raw_summary: str) -> dict:
     remaining = _normalize_heading_variants(raw_summary)
     brief = SECTION_MARKERS['brief_rundown']
-    trend = SECTION_MARKERS['trend_watch']
     highlights = SECTION_MARKERS['highlights']
     also = SECTION_MARKERS['also_worth_knowing']
     research = SECTION_MARKERS['research_builder_signals']
-    weekly = SECTION_MARKERS['weekly_preview']
 
     if brief in remaining:
         remaining = remaining.split(brief, 1)[1]
 
     sections = {
         'rundown': '',
-        'trend': '',
         'highlights': '',
         'also': '',
         'research': '',
-        'weekly_preview': '',
     }
 
     if also in remaining:
@@ -140,20 +126,11 @@ def _parse_summary_sections(raw_summary: str) -> dict:
 
     if research in sections['also']:
         sections['also'], sections['research'] = sections['also'].split(research, 1)
-    if weekly in sections['research']:
-        sections['research'], sections['weekly_preview'] = sections['research'].split(weekly, 1)
-    elif weekly in sections['also']:
-        sections['also'], sections['weekly_preview'] = sections['also'].split(weekly, 1)
 
     if highlights in before_also:
-        pre_highlights, sections['highlights'] = before_also.split(highlights, 1)
+        sections['rundown'], sections['highlights'] = before_also.split(highlights, 1)
     else:
-        pre_highlights = before_also
-
-    if trend in pre_highlights:
-        sections['rundown'], sections['trend'] = pre_highlights.split(trend, 1)
-    else:
-        sections['rundown'] = pre_highlights
+        sections['rundown'] = before_also
 
     return {key: value.strip() for key, value in sections.items()}
 
@@ -329,26 +306,6 @@ def _format_bullets(raw: str) -> str:
     return '\n\n'.join(formatted_blocks)
 
 
-def _format_trend_watch(raw: str) -> str:
-    lines = []
-    for line in _normalize_heading_variants(raw).split('\n'):
-        s = line.strip()
-        if not s:
-            continue
-        if s in {SECTION_MARKERS['main_news_trend_watch'], SECTION_MARKERS['trend_watch']}:
-            continue
-        elif s == SECTION_MARKERS['cooling_down']:
-            lines.append('')
-            lines.append(f'<b>{_escape(s)}</b>')
-        elif s in {SECTION_MARKERS['heating_up']}:
-            lines.append(f'<b>{_escape(s)}</b>')
-        elif s.startswith('-'):
-            lines.append(f"• {_escape(s[1:].strip())}")
-        else:
-            lines.append(_escape(s))
-    return '\n'.join(lines)
-
-
 def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]:
     profiles = get_destination_profiles()
     profile = profiles.get(profile_name, profiles['default'])
@@ -356,23 +313,17 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
     today = datetime.now().strftime('%B %d, %Y')
     header = f"<b>{profile.get('headline_prefix', '')}AI Daily Digest — {_escape(today)}</b>\n\n"
     rundown = _escape(sections['rundown'])
-    trend_watch = _format_trend_watch(sections['trend']) if profile.get('show_trend_watch', True) and sections['trend'] else ''
     highlights = _format_highlights(_limit_numbered(sections['highlights'], profile.get('max_highlights', 10)), include_signal_annotations=profile.get('include_signal_annotations', True)) if sections['highlights'] else ''
     also = _format_bullets(_limit_bullets(sections['also'], profile.get('max_also', 10))) if profile.get('show_also_worth_knowing', True) and sections['also'] else ''
     research = _format_bullets(_limit_bullets(sections['research'], profile.get('max_research', 5))) if sections['research'] else ''
-    weekly_preview = _format_bullets(_limit_bullets(sections['weekly_preview'], 6)) if sections['weekly_preview'] else ''
 
     parts = [header + rundown]
-    if trend_watch:
-        parts.append(trend_watch)
     if highlights:
         parts.append(f'<b>Highlights</b>\n\n{highlights}')
     if also:
         parts.append(f'<b>Also Worth Knowing</b>\n{also}')
     if research:
         parts.append(f'<b>Research / Builder Signals</b>\n{research}')
-    if weekly_preview:
-        parts.append(f'<b>Weekly Preview</b>\n{weekly_preview}')
 
     body = '\n\n'.join(part.strip() for part in parts if part.strip())
     if len(body) <= TELEGRAM_MAX_LENGTH:

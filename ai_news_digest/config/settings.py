@@ -236,7 +236,6 @@ def get_llm_settings() -> dict:
 def get_destination_profiles() -> dict:
     return {
         "default": {
-            "show_trend_watch": True,
             "show_also_worth_knowing": True,
             "max_highlights": 10,
             "max_also": 10,
@@ -245,7 +244,6 @@ def get_destination_profiles() -> dict:
             "headline_prefix": "",
         },
         "compact": {
-            "show_trend_watch": False,
             "show_also_worth_knowing": False,
             "max_highlights": 5,
             "max_also": 0,
@@ -254,7 +252,6 @@ def get_destination_profiles() -> dict:
             "headline_prefix": "⚡ ",
         },
         "research": {
-            "show_trend_watch": True,
             "show_also_worth_knowing": True,
             "max_highlights": 12,
             "max_also": 12,

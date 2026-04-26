@@ -32,10 +32,10 @@ class TestSummarize:
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
         articles = [{'title': 'Test Article', 'summary': 'Test summary about AI', 'url': 'https://example.com/1', 'source': 'Test Source'}]
-        result = summarize(articles, trend_snapshot={'heating_up': [{'topic': 'Anthropic'}], 'cooling_down': []})
+        result = summarize(articles)
         assert isinstance(result, str)
         payload = mock_post.call_args.kwargs['json']
-        assert 'Trend context:' in payload['prompt']
+        assert 'Main articles:' in payload['prompt']
         assert '[paper]' in payload['prompt']
 
     @patch('ai_news_digest.llm.service.get_llm_settings', return_value=OLLAMA_SETTINGS)
