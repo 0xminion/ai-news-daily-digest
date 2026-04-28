@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import re
 import time
 from datetime import datetime
@@ -14,6 +15,16 @@ MARKDOWN_CHUNK_HEADROOM = 128
 # Telegram MarkdownV2 reserved characters that must be escaped outside of code blocks
 # _ * [ ] ( ) ~ ` > # + - = | { } . !
 _MDV2_RESERVED_RE = re.compile(r'([_\*\[\]\(\)~`>#\+\-=|\{\}\.!])')
+_HTML_TAG_RE = re.compile(r'<[^>]+>')
+
+
+def _strip_html(text: str | None) -> str:
+    """Remove HTML tags and unescape HTML entities from text."""
+    if not text:
+        return ''
+    text = _HTML_TAG_RE.sub('', text)
+    text = html.unescape(text)
+    return ' '.join(text.split())
 
 
 def _mdv2_escape(text: str) -> str:
@@ -278,6 +289,8 @@ def _format_bullets(raw: str) -> str:
 def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]:
     profiles = get_destination_profiles()
     profile = profiles.get(profile_name, profiles['default'])
+    # Defense-in-depth: strip any residual HTML tags from the raw LLM output
+    raw_summary = _strip_html(raw_summary)
     sections = _parse_summary_sections(raw_summary)
     today = datetime.now().strftime('%B %d, %Y')
     header = f"**{profile.get('headline_prefix', '')}AI Daily Digest — {_mdv2_escape(today)}**\n\n"

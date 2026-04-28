@@ -31,6 +31,23 @@ _DATE_RE = re.compile(r'"(?:datePublished|Published)":"([^"]+)"')
 
 
 # ---------------------------------------------------------------------------
+# HTML sanitization utilities
+# ---------------------------------------------------------------------------
+
+def _strip_html_tags(text: str | None) -> str:
+    """Remove HTML tags and unescape HTML entities from raw text."""
+    if not text:
+        return ''
+    soup = BeautifulSoup(text, 'html.parser')
+    text = soup.get_text(separator=' ', strip=True)
+    # Also unescape numeric entities (BeautifulSoup handles most but not all)
+    import html
+    text = html.unescape(text)
+    # Collapse redundant whitespace
+    return ' '.join(text.split())
+
+
+# ---------------------------------------------------------------------------
 # URL safety
 # ---------------------------------------------------------------------------
 

@@ -7,7 +7,7 @@ from ai_news_digest.llm.service import _quiet_day_message, summarize
 
 OLLAMA_SETTINGS = {
     'provider': 'ollama',
-    'model': 'kimi-k2.6:cloud',
+    'model': 'minimax-m2.7:cloud',
     'ollama_host': 'http://localhost:11434',
     'timeout': 30,
     'max_tokens': 1000,

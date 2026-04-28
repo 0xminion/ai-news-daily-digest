@@ -74,7 +74,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Pull an Ollama model (default fallback)
-ollama pull kimi-k2.6:cloud    # recommended — fast, good quality
+ollama pull minimax-m2.7:cloud    # recommended — fast, good quality
 # or: ollama pull gemma4:31b-cloud
 
 # Configure
@@ -140,7 +140,7 @@ All config via environment variables (`.env` file):
 | `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
 | `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
-| `OLLAMA_MODEL` | No | `kimi-k2.6:cloud` | Default Ollama model |
+| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Default Ollama model |
 | `RETENTION_DAYS` | No | `30` | Local daily/weekly report retention window |
 | `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
 | `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |

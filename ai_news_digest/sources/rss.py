@@ -6,7 +6,7 @@ from ai_news_digest.config import RSS_FEEDS, RSS_WINDOW_HOURS, USER_AGENT, logge
 from ai_news_digest.config.keywords import matches_ai_keywords
 from ai_news_digest.utils.retry import with_retry
 from .common import parse_entry_date, within_hours
-from .pages import _is_allowed_url
+from .pages import _is_allowed_url, _strip_html_tags
 
 
 @with_retry(max_attempts=2, delay=2.0, backoff=2.0)
@@ -33,7 +33,7 @@ def fetch_rss_articles(feeds=None) -> list[dict]:
                 if not within_hours(published, RSS_WINDOW_HOURS):
                     continue
                 title = getattr(entry, 'title', '').strip()
-                summary = getattr(entry, 'summary', '').strip()
+                summary = _strip_html_tags(getattr(entry, 'summary', '').strip())
                 link = getattr(entry, 'link', '').strip()
                 if not title or not link:
                     continue

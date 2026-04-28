@@ -152,6 +152,7 @@ def _load_prompt_template(name: str) -> str:
 
 
 def _serialize_articles(articles: list[dict]) -> str:
+    """Serialize articles for LLM prompt."""
     return json.dumps(
         [
             {
