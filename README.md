@@ -120,6 +120,48 @@ crontab -e
 # Add: 0 7 * * * cd /path/to/ai-news-daily-digest && .venv/bin/python main.py
 ```
 
+## Hermes Skill (Recommended)
+
+This repo ships a Hermes skill at `SKILL.md` that enforces formatting compliance
+across **all** models — kimi, minimax, gemma, claude, or gpt.
+
+### Install the skill
+
+```bash
+# From the repo root
+ln -sf "$(pwd)/SKILL.md" ~/.hermes/skills/ai-news-digest/SKILL.md
+```
+
+The skill automatically loads whenever you run the digest inside a Hermes session.
+
+### What the skill enforces
+
+- **Section layout** — fixed order: Brief Rundown → Highlights → Also Worth Knowing → Research / Builder Signals
+- **Headline links** — `[Title](url)` everywhere; titles are **never truncated**
+- **Subtype prefixes** — `[paper]`, `[repo]`, `[builder feed]`, `[product / launch]`
+- **MarkdownV2 escaping** — `_mdv2_escape()` on all Telegram text
+- **HTML sanitization** — two-gate pipeline: RSS parser + post-LLM formatter
+- **Section heading normalization** — case-insensitive matching before parsing
+- **Bullet merge fix** — splits `) - [` patterns into separate items
+- **Model-specific notes** — timeout tuning per model (kimi needs 600s, minimax 120s)
+
+### Loading the skill in cron jobs
+
+When scheduling via `cronjob`, attach the skill so formatting rules are always present:
+
+```bash
+# One-shot run
+hermes cronjob create \
+  --schedule "0 7 * * *" \
+  --name "ai-news-digest" \
+  --skills ai-news-digest \
+  --prompt "Run the AI news daily digest for today and deliver to Telegram."
+```
+
+Or in your `crontab` directly, the skill is automatically discovered when the
+agent runs from the repo directory (Hermes resolves `.` in `cwd` and loads
+matching skills from `~/.hermes/skills/`).
+
 ## Configuration
 
 All config via environment variables (`.env` file):
