@@ -262,6 +262,31 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
 
 
 def _format_bullets(raw: str) -> str:
+    # Pre-process: split lines where LLM crammed multiple items on one line
+    MERGE_SPLIT_RE = re.compile(r'\)\s+-\s+(?=\[)')
+    unmerged_lines = []
+    for line in raw.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            unmerged_lines.append(line)
+            continue
+        parts = MERGE_SPLIT_RE.split(stripped)
+        if len(parts) > 1:
+            for i, part in enumerate(parts):
+                part = part.strip()
+                if not part:
+                    continue
+                if i < len(parts) - 1:
+                    part = part + ')'
+                # Add bullet prefix to split items (first one already has it from input)
+                if i == 0:
+                    unmerged_lines.append(part)
+                else:
+                    unmerged_lines.append('• ' + part)
+        else:
+            unmerged_lines.append(line)
+    raw = '\n'.join(unmerged_lines)
+
     formatted_blocks = []
     for block in _split_bullet_blocks(raw):
         lines = [line.rstrip() for line in block.split('\n') if line.strip()]
