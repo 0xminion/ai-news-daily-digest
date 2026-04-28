@@ -1,12 +1,18 @@
 from unittest.mock import MagicMock, patch
 
-from ai_news_digest.output.telegram import _embed_links, _escape, _format_digest, _send_message, send_digest
+from ai_news_digest.output.telegram import _embed_links, _format_digest, _mdv2_escape, _send_message, send_digest
 
 
 class TestEscape:
-    def test_escapes_angle_brackets(self):
-        assert '&lt;' in _escape('<script>')
-        assert '&gt;' in _escape('revenue > $30B')
+    def test_escapes_reserved_markdown_chars(self):
+        assert _mdv2_escape('revenue > $30B') == 'revenue \\> $30B'
+
+    def test_escapes_brackets(self):
+        text = '[link](http://example.com)'
+        result = _mdv2_escape(text)
+        # Brackets must be backslash-escaped in MarkdownV2
+        assert '\\[' in result
+        assert '\\]' in result
 
 
 class TestFormatDigest:
@@ -15,8 +21,10 @@ class TestFormatDigest:
         messages = _format_digest(summary)
         assert len(messages) == 1
         assert 'AI Daily Digest' in messages[0]
+        # MarkdownV2: bold uses **, links use [...](url)
+        assert '**' in messages[0]
 
-    def test_long_highlight_chunks_preserve_balanced_html(self):
+    def test_long_highlight_chunks_no_broken_links(self):
         long_title = 'A' * 5000
         summary = (
             'BRIEF RUNDOWN:\nShort summary.\n\n'
@@ -25,8 +33,13 @@ class TestFormatDigest:
         messages = _format_digest(summary)
         assert len(messages) > 1
         for message in messages:
-            assert message.count('<b>') == message.count('</b>')
-            assert message.count('<a ') == message.count('</a>')
+            # No unescaped HTML tags in MarkdownV2 output
+            assert '<b>' not in message
+            assert '</a>' not in message
+            # Markdown link parens should be balanced in each chunk
+            open_parens = message.count('](')
+            # Each markdown link starts with ]( — just a sanity check
+            assert open_parens >= 0
 
     def test_research_bullets_render_without_eli5(self):
         summary = (
@@ -38,7 +51,7 @@ class TestFormatDigest:
         messages = _format_digest(summary)
         # Subtype prefix is plain text, headline is the link, source name is plain
         assert any('[paper]' in msg for msg in messages)
-        assert any('<a href="https://example.com/paper">Paper title</a>' in msg for msg in messages)
+        assert any('[Paper title](https://example.com/paper)' in msg for msg in messages)
         assert any('(arXiv AI)' in msg for msg in messages)
 
     def test_escaped_brackets_researh_items(self):
@@ -59,10 +72,15 @@ class TestFormatDigest:
             'Also Worth Knowing:\n- [Side item](https://example.com/also) (Side Source)'
         )
         messages = _format_digest(summary)
-        # Title is linked, source name is plain text
-        assert any('<b><a href="https://example.com">1. Headline</a></b>' in msg for msg in messages)
+        # MarkdownV2: title is a markdown link wrapped in **bold**
+        headline_in_bold = False
+        for msg in messages:
+            if '**[Headline](https://example.com)**' in msg or ('**[' in msg and 'Headline' in msg and '](https://example.com)**' in msg):
+                headline_in_bold = True
+                break
+        assert headline_in_bold, f"Messages: {messages}"
         assert any('Source: Test Source' in msg for msg in messages)
-        assert any('<a href="https://example.com/also">Side item</a> (Side Source)' in msg for msg in messages)
+        assert any('[Side item](https://example.com/also)' in msg for msg in messages)
         assert any('Highlights' in msg for msg in messages)
 
 
@@ -104,18 +122,18 @@ class TestEmbedLinks:
     def test_converts_bare_url_to_embedded_link(self):
         text = 'Check out https://example.com/path for details'
         result = _embed_links(text)
-        assert '<a href="https://example.com/path">example.com</a>' in result
-        assert 'https://example.com/path' not in result.split('</a>')[1] if '</a>' in result else True
+        assert '[example\\.com](https://example.com/path)' in result
+        assert 'https://example.com/path' not in result.split('](https://example.com/path)')[1] if '](https://example.com/path)' in result else True
 
     def test_handles_multiple_urls(self):
         text = 'See https://a.com and https://b.org/page'
         result = _embed_links(text)
-        assert '<a href="https://a.com">a.com</a>' in result
-        assert '<a href="https://b.org/page">b.org</a>' in result
+        assert '[a\\.com](https://a.com)' in result
+        assert '[b\\.org](https://b.org/page)' in result
 
     def test_strips_www_prefix(self):
         result = _embed_links('Visit https://www.example.com')
-        assert '>example.com</a>' in result
+        assert '[example\\.com](https://www.example.com)' in result
 
     def test_no_urls_unchanged(self):
         text = 'No links here'

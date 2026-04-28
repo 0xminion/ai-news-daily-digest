@@ -23,11 +23,14 @@ def test_render_weekly_highlights_includes_confidence_and_subtypes():
     }
     text = render_weekly_highlights(payload)
     assert 'Confidence: High confidence' in text
-    assert '[paper]' in text
-    assert '<a href="https://example.com">Headline</a>' in text
-    assert '[builder feed]' in text
-    assert '<b>Highlights of the Week</b>' in text
-    assert '<b>Question Prompts</b>' not in text
+    assert '\\[paper\\]' in text
+    assert '[Headline](https://example.com)' in text
+    assert '\\[builder feed\\]' in text
+    assert '**Highlights of the Week**' in text
+    assert '**Question Prompts**' not in text
+    # No HTML tags should remain
+    assert '<b>' not in text
+    assert '<a href' not in text
 
 
 def test_weekly_fallback_keeps_github_trending_in_research_signals():

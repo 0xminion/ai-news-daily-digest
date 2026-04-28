@@ -313,5 +313,5 @@ def test_embed_links_strips_unbalanced_trailing_paren():
 
     text = '(See https://example.com/guide)'
     result = _embed_links(text)
-    # The URL should not include the outer parens
-    assert 'href="https://example.com/guide"' in result
+    # The URL should not include the outer parens — MarkdownV2 format
+    assert '[example\\.com](https://example.com/guide)' in result

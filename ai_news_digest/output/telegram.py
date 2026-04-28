@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 import re
 import time
 from datetime import datetime
@@ -10,64 +9,38 @@ import requests
 from ai_news_digest.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, get_destination_profiles, get_telegram_destinations, logger
 
 TELEGRAM_MAX_LENGTH = 4096
-HTML_CHUNK_REPAIR_HEADROOM = 128
-HTML_BALANCE_TAG_RE = re.compile(r'<(/?)(a|b)(?:\s+[^>]*)?>', re.IGNORECASE)
+MARKDOWN_CHUNK_HEADROOM = 128
+
+# Telegram MarkdownV2 reserved characters that must be escaped outside of code blocks
+# _ * [ ] ( ) ~ ` > # + - = | { } . !
+_MDV2_RESERVED_RE = re.compile(r'([_\*\[\]\(\)~`>#\+\-=|\{\}\.!])')
 
 
-def _repair_html_boundary(chunk: str, remaining: str) -> tuple[str, str]:
-    """Close still-open inline tags in this chunk and reopen them in the remainder."""
-    stack: list[tuple[str, str]] = []
-    for match in HTML_BALANCE_TAG_RE.finditer(chunk):
-        is_closing = match.group(1) == '/'
-        tag = match.group(2).lower()
-        token = match.group(0)
-        if not is_closing:
-            stack.append((tag, token))
-            continue
-        for index in range(len(stack) - 1, -1, -1):
-            if stack[index][0] == tag:
-                del stack[index:]
-                break
-    if not stack:
-        return chunk, remaining
-    closing_tags = ''.join(f'</{tag}>' for tag, _ in reversed(stack))
-    reopening_tags = ''.join(token for _, token in stack)
-    return chunk + closing_tags, reopening_tags + remaining
+def _mdv2_escape(text: str) -> str:
+    """Escape Telegram MarkdownV2 reserved characters."""
+    return _MDV2_RESERVED_RE.sub(r'\\\1', text)
 
 
-def _split_at_safe_boundary(html: str, max_len: int) -> tuple[str, str]:
-    """Split HTML at a safe boundary (newline or tag end) without breaking tags."""
-    if len(html) <= max_len:
-        return html, ""
-    candidate = html[:max_len]
+def _split_at_safe_boundary(text: str, max_len: int) -> tuple[str, str]:
+    """Split text at a safe boundary (newline) without breaking markdown links."""
+    if len(text) <= max_len:
+        return text, ""
+    candidate = text[:max_len]
     # Try to split at a double newline first
     last_double_newline = candidate.rfind("\n\n")
     if last_double_newline > max_len * 0.5:
-        return html[:last_double_newline], html[last_double_newline:].lstrip()
+        return text[:last_double_newline], text[last_double_newline:].lstrip()
     # Try to split at a single newline
     last_newline = candidate.rfind("\n")
     if last_newline > max_len * 0.5:
-        return html[:last_newline], html[last_newline:].lstrip()
-    # Try to split after the last complete HTML tag
-    last_tag_end = candidate.rfind(">")
-    if last_tag_end > max_len * 0.5:
-        return html[:last_tag_end + 1], html[last_tag_end + 1:]
-    # Fallback: just cut — but strip trailing partial tags to avoid breaking
-    truncated = candidate
-    # If we're inside a tag, walk back to before the <
-    if "<" in truncated and (">" not in truncated or truncated.rfind("<") > truncated.rfind(">")):
-        last_open = truncated.rfind("<")
-        if last_open > max_len * 0.3:
-            truncated = truncated[:last_open]
-        else:
-            # The tag itself is longer than max_len — try to include the closing >
-            close_tag = html.find(">", max_len)
-            if close_tag != -1 and close_tag <= max_len * 1.3:
-                truncated = html[:close_tag + 1]
-            else:
-                # Tag is absurdly long; hard cut before the opening <
-                truncated = html[:last_open]
-    return truncated, html[len(truncated):]
+        return text[:last_newline], text[last_newline:].lstrip()
+    # Fallback: just cut — avoid splitting inside a markdown link
+    # Walk back to before the last [ (at a reasonable distance)
+    last_bracket = candidate.rfind("[")
+    if last_bracket > max_len * 0.3 and text.find("](", last_bracket) != -1:
+        # We might be inside a markdown link; walk back before [
+        candidate = text[:last_bracket]
+    return candidate, text[len(candidate):]
 
 
 SECTION_MARKERS = {
@@ -76,10 +49,6 @@ SECTION_MARKERS = {
     'also_worth_knowing': 'Also Worth Knowing:',
     'research_builder_signals': 'Research / Builder Signals:',
 }
-
-
-def _escape(text: str) -> str:
-    return html.escape(html.unescape(text))
 
 
 def _normalize_heading_variants(text: str) -> str:
@@ -221,7 +190,7 @@ def _split_inline_source(line: str) -> tuple[str, tuple[str, str] | None]:
 
 
 def _embed_links(text: str) -> str:
-    """Convert bare URLs in body text into hidden embedded links on domain name."""
+    """Convert bare URLs in body text into MarkdownV2 embedded links on domain name."""
     def _replace_url(m):
         url = m.group(0)
         # Strip trailing punctuation that got caught by \S+ — but NOT parens (handled below)
@@ -237,7 +206,7 @@ def _embed_links(text: str) -> str:
         # If stripping removed everything (unlikely), keep original
         url = stripped if stripped else url
         domain = re.sub(r'^https?://(www\.)?', '', url).split('/')[0]
-        return f'<a href="{url}">{_escape(domain)}</a>'
+        return f'[{_mdv2_escape(domain)}]({url})'
     return re.sub(r'https?://\S+', _replace_url, text)
 
 
@@ -266,17 +235,17 @@ def _format_highlights(raw: str, include_signal_annotations: bool = True) -> str
             if body:
                 if not include_signal_annotations and ('Hacker News' in body or 'points' in body):
                     continue
-                body_lines.append(_embed_links(_escape(body)))
+                body_lines.append(_embed_links(_mdv2_escape(body)))
             if inline_source:
                 source_name, source_url = inline_source
         if source_url:
-            rendered_title = f'<b><a href="{source_url}">{_escape(title_line)}</a></b>'
+            rendered_title = f'**[{_mdv2_escape(title_line)}]({source_url})**'
         else:
-            rendered_title = f'<b>{_escape(title_line)}</b>'
+            rendered_title = f'**{_mdv2_escape(title_line)}**'
         rendered = [rendered_title]
         rendered.extend(body_lines)
         if source_name:
-            rendered.append(f'Source: {_escape(source_name)}')
+            rendered.append(f'Source: {_mdv2_escape(source_name)}')
         rendered_blocks.append('\n'.join(rendered))
     return '\n\n'.join(rendered_blocks)
 
@@ -292,16 +261,16 @@ def _format_bullets(raw: str) -> str:
         first = first.replace('\\[', '[').replace('\\]', ']')
         pipe = _bullet_match(first)
         if pipe:
-            title = _escape(pipe.group('title').strip())
-            source = _escape(pipe.group('source').strip())
+            title = _mdv2_escape(pipe.group('title').strip())
+            source = _mdv2_escape(pipe.group('source').strip())
             url = pipe.group('url').strip()
             subtype = pipe.groupdict().get('subtype')
-            subtype_prefix = f"[{_escape(subtype.strip('[]'))}] " if subtype else ''
-            rendered = [f'• {subtype_prefix}<a href="{url}">{title}</a> ({source})']
+            subtype_prefix = f"[{_mdv2_escape(subtype.strip('[]'))}] " if subtype else ''
+            rendered = [f'• {subtype_prefix}[{title}]({url}) ({source})']
         else:
-            rendered = [f'• {_embed_links(_escape(first))}']
+            rendered = [f'• {_embed_links(_mdv2_escape(first))}']
         for extra in lines[1:]:
-            rendered.append(f'  {_embed_links(_escape(extra.strip()))}')
+            rendered.append(f'  {_embed_links(_mdv2_escape(extra.strip()))}')
         formatted_blocks.append('\n'.join(rendered))
     return '\n\n'.join(formatted_blocks)
 
@@ -311,19 +280,19 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
     profile = profiles.get(profile_name, profiles['default'])
     sections = _parse_summary_sections(raw_summary)
     today = datetime.now().strftime('%B %d, %Y')
-    header = f"<b>{profile.get('headline_prefix', '')}AI Daily Digest — {_escape(today)}</b>\n\n"
-    rundown = _escape(sections['rundown'])
+    header = f"**{profile.get('headline_prefix', '')}AI Daily Digest — {_mdv2_escape(today)}**\n\n"
+    rundown = _mdv2_escape(sections['rundown'])
     highlights = _format_highlights(_limit_numbered(sections['highlights'], profile.get('max_highlights', 10)), include_signal_annotations=profile.get('include_signal_annotations', True)) if sections['highlights'] else ''
     also = _format_bullets(_limit_bullets(sections['also'], profile.get('max_also', 10))) if profile.get('show_also_worth_knowing', True) and sections['also'] else ''
     research = _format_bullets(_limit_bullets(sections['research'], profile.get('max_research', 5))) if sections['research'] else ''
 
     parts = [header + rundown]
     if highlights:
-        parts.append(f'<b>Highlights</b>\n\n{highlights}')
+        parts.append(f'**Highlights**\n\n{highlights}')
     if also:
-        parts.append(f'<b>Also Worth Knowing</b>\n{also}')
+        parts.append(f'**Also Worth Knowing**\n{also}')
     if research:
-        parts.append(f'<b>Research / Builder Signals</b>\n{research}')
+        parts.append(f'**Research / Builder Signals**\n{research}')
 
     body = '\n\n'.join(part.strip() for part in parts if part.strip())
     if len(body) <= TELEGRAM_MAX_LENGTH:
@@ -342,11 +311,10 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
             current = part.strip()
         else:
             remaining = part.strip()
-            split_limit = max(512, TELEGRAM_MAX_LENGTH - HTML_CHUNK_REPAIR_HEADROOM)
+            split_limit = max(512, TELEGRAM_MAX_LENGTH - MARKDOWN_CHUNK_HEADROOM)
             while remaining:
                 chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
                 if chunk:
-                    chunk, remaining = _repair_html_boundary(chunk, remaining)
                     chunks.append(chunk)
             current = ''
     if current:
@@ -354,11 +322,10 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
             chunks.append(current)
         else:
             remaining = current
-            split_limit = max(512, TELEGRAM_MAX_LENGTH - HTML_CHUNK_REPAIR_HEADROOM)
+            split_limit = max(512, TELEGRAM_MAX_LENGTH - MARKDOWN_CHUNK_HEADROOM)
             while remaining:
                 chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
                 if chunk:
-                    chunk, remaining = _repair_html_boundary(chunk, remaining)
                     chunks.append(chunk)
     return chunks
 
@@ -368,7 +335,7 @@ def _send_message(text: str, retry: bool = True, bot_token: str | None = None, c
     chat_id = chat_id or TELEGRAM_CHAT_ID
     response = requests.post(
         f'https://api.telegram.org/bot{bot_token}/sendMessage',
-        json={'chat_id': chat_id, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True},
+        json={'chat_id': chat_id, 'text': text, 'parse_mode': 'MarkdownV2', 'disable_web_page_preview': True},
         timeout=30,
     )
     if response.status_code == 200:
@@ -411,29 +378,28 @@ def send_digest(raw_summary: str, destinations: list[dict] | None = None) -> boo
     return all_ok
 
 
-def _chunk_html(html: str, max_len: int) -> list[str]:
-    """Split HTML string into chunks that fit Telegram's message limit without breaking tags."""
+def _chunk_text(text: str, max_len: int) -> list[str]:
+    """Split text string into chunks that fit Telegram's message limit without breaking markdown links."""
     chunks = []
-    remaining = html
-    split_limit = max(512, max_len - HTML_CHUNK_REPAIR_HEADROOM)
+    remaining = text
+    split_limit = max(512, max_len - MARKDOWN_CHUNK_HEADROOM)
     while remaining:
         chunk, remaining = _split_at_safe_boundary(remaining, split_limit)
         if chunk:
-            chunk, remaining = _repair_html_boundary(chunk, remaining)
             chunks.append(chunk)
         if not remaining:
             break
     return chunks
 
 
-def send_weekly_report(weekly_html: str, destinations: list[dict] | None = None) -> bool:
-    """Send a weekly report (already HTML) to destinations with safe chunking."""
+def send_weekly_report(weekly_text: str, destinations: list[dict] | None = None) -> bool:
+    """Send a weekly report (already MarkdownV2) to destinations with safe chunking."""
     destinations = destinations or get_telegram_destinations()
     if not destinations:
         logger.error('No Telegram destinations configured')
         return False
     all_ok = True
-    chunks = _chunk_html(weekly_html, TELEGRAM_MAX_LENGTH)
+    chunks = _chunk_text(weekly_text, TELEGRAM_MAX_LENGTH)
     for destination in destinations:
         ok = True
         failed_chunks = []
@@ -455,6 +421,6 @@ def send_text_report(text: str, destinations: list[dict] | None = None) -> bool:
     destinations = destinations or get_telegram_destinations()
     all_ok = True
     for destination in destinations:
-        if not _send_message(_escape(text), bot_token=destination.get('bot_token'), chat_id=destination.get('chat_id')):
+        if not _send_message(_mdv2_escape(text), bot_token=destination.get('bot_token'), chat_id=destination.get('chat_id')):
             all_ok = False
     return all_ok

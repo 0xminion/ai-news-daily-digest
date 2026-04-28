@@ -178,79 +178,76 @@ def build_weekly_preview(payload: dict) -> str:
 
 def render_weekly_highlights(payload: dict) -> str:
     from datetime import datetime
-    import html as html_mod
-    from ai_news_digest.output.telegram import _embed_links
-
-    def _esc(text: str) -> str:
-        return html_mod.escape(html_mod.unescape(str(text)))
+    import re
+    from ai_news_digest.output.telegram import _embed_links, _mdv2_escape
 
     today = datetime.now().strftime('%B %d, %Y')
-    lines = [f'<b>AI Weekly Highlights — {_esc(today)}</b>', '']
+    lines = [f'**AI Weekly Highlights — {_mdv2_escape(today)}**', '']
 
     if payload.get('executive_summary'):
-        lines.append('<b>Executive Summary</b>')
-        lines.append(_esc(payload['executive_summary']))
+        lines.append('**Executive Summary**')
+        lines.append(_mdv2_escape(payload['executive_summary']))
         lines.append('')
 
-    lines.append('<b>Highlights of the Week</b>')
+    lines.append('**Highlights of the Week**')
     for idx, item in enumerate(payload.get('highlights_of_the_week', []), start=1):
-        headline = _esc(item['headline'])
+        headline = _mdv2_escape(item['headline'])
         url = item.get('url', '')
         if url:
-            lines.append(f'{idx}. <b><a href="{url}">{headline}</a></b>')
+            lines.append(f'{idx}\\. **[{headline}]({url})**')
         else:
-            lines.append(f'{idx}. <b>{headline}</b>')
-        lines.append(f"Confidence: {_esc(item.get('confidence', 'n/a'))}")
-        lines.append(_embed_links(_esc(item.get('why_it_matters', ''))))
-        lines.append(f"Source: {_esc(item.get('source', ''))}")
+            lines.append(f'{idx}\\. **{headline}**')
+        lines.append(f"Confidence: {_mdv2_escape(item.get('confidence', 'n/a'))}")
+        lines.append(_embed_links(_mdv2_escape(item.get('why_it_matters', ''))))
+        lines.append(f"Source: {_mdv2_escape(item.get('source', ''))}")
         lines.append('')
 
-    lines.append('<b>Trending and Directions</b>')
+    lines.append('**Trending and Directions**')
     for item in payload.get('trending_directions', []):
-        topic = _esc(item['topic'])
-        direction = _esc(item['direction'])
-        confidence = _esc(item.get('confidence', 'n/a'))
-        note = _esc(item.get('note', ''))
-        lines.append(f"• {topic} — {direction} [{confidence}] {_embed_links(note)}")
+        topic = _mdv2_escape(item['topic'])
+        direction = _mdv2_escape(item['direction'])
+        confidence = _mdv2_escape(item.get('confidence', 'n/a'))
+        note = _mdv2_escape(item.get('note', ''))
+        lines.append(f"• {topic} — {direction} \\[{confidence}\\] {_embed_links(note)}")
     lines.append('')
 
-    lines.append('<b>Areas of Focus to Research</b>')
+    lines.append('**Areas of Focus to Research**')
     for item in payload.get('research_focus', []):
-        topic = _esc(item['topic'])
-        confidence = _esc(item.get('confidence', 'n/a'))
-        why_now = _esc(item.get('why_now', ''))
-        what_to_watch = _esc(item.get('what_to_watch', ''))
-        lines.append(f"• {topic} [{confidence}]: {why_now}")
+        topic = _mdv2_escape(item['topic'])
+        confidence = _mdv2_escape(item.get('confidence', 'n/a'))
+        why_now = _mdv2_escape(item.get('why_now', ''))
+        what_to_watch = _mdv2_escape(item.get('what_to_watch', ''))
+        lines.append(f"• {topic} \\[{confidence}\\]: {why_now}")
         lines.append(f"  Watch: {_embed_links(what_to_watch)}")
     lines.append('')
 
     if payload.get('research_builder_signals'):
-        lines.append('<b>Research / Builder Signals</b>')
+        lines.append('**Research / Builder Signals**')
         for item in payload['research_builder_signals']:
-            subtype = _esc(item.get('subtype', 'signal'))
-            headline = _esc(item['headline'])
+            subtype = _mdv2_escape(item.get('subtype', 'signal'))
+            headline = _mdv2_escape(item['headline'])
             url = item.get('url', '')
-            source = _esc(item.get('source', ''))
-            confidence = _esc(item.get('confidence', 'n/a'))
+            source = _mdv2_escape(item.get('source', ''))
+            confidence = _mdv2_escape(item.get('confidence', 'n/a'))
             if url:
-                lines.append(f"• [{subtype}] <a href=\"{url}\">{headline}</a> ({source})")
+                lines.append(f"• \\[{subtype}\\] [{headline}]({url}) ({source})")
             else:
-                lines.append(f"• [{subtype}] {headline} ({source})")
+                lines.append(f"• \\[{subtype}\\] {headline} ({source})")
             lines.append(f"  Confidence: {confidence}")
         lines.append('')
 
     if payload.get('missed_but_emerging'):
-        lines.append('<b>Missed but Emerging</b>')
+        lines.append('**Missed but Emerging**')
         for item in payload['missed_but_emerging']:
-            subtype = _esc(item.get('subtype', 'signal'))
-            headline = _esc(item['headline'])
+            subtype = _mdv2_escape(item.get('subtype', 'signal'))
+            headline = _mdv2_escape(item['headline'])
             url = item.get('url', '')
-            source = _esc(item.get('source', ''))
-            confidence = _esc(item.get('confidence', 'n/a'))
+            source = _mdv2_escape(item.get('source', ''))
+            confidence = _mdv2_escape(item.get('confidence', 'n/a'))
             if url:
-                lines.append(f"• [{subtype}] <a href=\"{url}\">{headline}</a> ({source})")
+                lines.append(f"• \\[{subtype}\\] [{headline}]({url}) ({source})")
             else:
-                lines.append(f"• [{subtype}] {headline} ({source})")
+                lines.append(f"• \\[{subtype}\\] {headline} ({source})")
             lines.append(f"  Confidence: {confidence}")
         lines.append('')
 
