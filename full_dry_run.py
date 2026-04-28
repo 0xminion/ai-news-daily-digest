@@ -5,7 +5,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "dry-run")
 os.environ.setdefault("TELEGRAM_CHAT_ID", "dry-run")
 # Do NOT hardcode OLLAMA_MODEL here — respect .env or env vars so the
 # pipeline can run via the configured LLM (e.g. kimi-k2.6) instead of
-# falling back to minimax-m2.7:cloud.
+# falling back to kimi-k2.6:cloud.
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 for n in ("urllib3", "requests", "httpx", "httpcore"):
