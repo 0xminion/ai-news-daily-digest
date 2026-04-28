@@ -142,7 +142,8 @@ def _split_bullet_blocks(raw: str) -> list[str]:
             if current:
                 current.append('')
             continue
-        if stripped.lstrip().startswith('- '):
+        bullet_like = stripped.lstrip()
+        if bullet_like.startswith('- ') or bullet_like.startswith('• '):
             if current:
                 blocks.append('\n'.join(current).strip())
             current = [stripped.strip()]
