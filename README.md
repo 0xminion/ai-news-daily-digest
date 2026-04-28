@@ -58,7 +58,7 @@ The LLM returns structured JSON which is validated, then converted to the text f
 
 - Python 3.11+
 - [Ollama](https://ollama.com) installed and running (or another LLM provider)
-- An LLM with **at least 200k context length** (`minimax-m2.7:cloud`, Claude Sonnet, or another 200k+ model)
+- An LLM with **at least 200k context length** (`kimi-k2.6:cloud`, Claude Sonnet, or another 200k+ model)
 - A Telegram bot (create one via [@BotFather](https://t.me/botfather))
 
 ### Setup
@@ -74,7 +74,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Pull an Ollama model (default fallback)
-ollama pull minimax-m2.7:cloud    # recommended — fast, good quality
+ollama pull kimi-k2.6:cloud    # recommended — fast, good quality
 # or: ollama pull gemma4:31b-cloud
 
 # Configure
@@ -131,7 +131,7 @@ All config via environment variables (`.env` file):
 | `TELEGRAM_CHAT_ID` | When `OUTPUT_MODE=telegram` | — | Target chat/group ID (comma-separated for multiple) |
 | `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with per-destination bot tokens |
 | `LLM_PROVIDER` | No | auto-detect | `ollama`, `openai`, `openrouter`, `anthropic` |
-| `LLM_MODEL` | No | auto-detect | Model name for a **200k+ context** model (e.g. `claude-3-5-sonnet-20240620`, `minimax-m2.7:cloud`) |
+| `LLM_MODEL` | No | auto-detect | Model name for a **200k+ context** model (e.g. `claude-3-5-sonnet-20240620`, `kimi-k2.6:cloud`) |
 | `LLM_API_BASE` | No | provider default | Optional custom API base |
 | `LLM_CONTEXT_LIMIT` | No | auto-infer | Optional explicit context length for custom or less-common 200k+ models |
 | `LLM_TIMEOUT` | No | `120` | LLM request timeout in seconds |
@@ -140,7 +140,7 @@ All config via environment variables (`.env` file):
 | `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
 | `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
 | `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
-| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Default Ollama model |
+| `OLLAMA_MODEL` | No | `kimi-k2.6:cloud` | Default Ollama model |
 | `RETENTION_DAYS` | No | `30` | Local daily/weekly report retention window |
 | `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
 | `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |
