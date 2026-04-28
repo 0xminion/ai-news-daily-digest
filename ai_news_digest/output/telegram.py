@@ -24,7 +24,8 @@ def _strip_html(text: str | None) -> str:
         return ''
     text = _HTML_TAG_RE.sub('', text)
     text = html.unescape(text)
-    return ' '.join(text.split())
+    # Preserve line structure; only collapse excessive inline whitespace
+    return '\n'.join(' '.join(line.split()) for line in text.splitlines())
 
 
 def _mdv2_escape(text: str) -> str:
