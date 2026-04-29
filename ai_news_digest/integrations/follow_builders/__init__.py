@@ -1,1 +1,1 @@
-from .adapter import *
+from .adapter import normalized_items_from_remote_feeds as normalized_items_from_remote_feeds

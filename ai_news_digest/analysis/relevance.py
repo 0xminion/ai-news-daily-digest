@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from ai_news_digest.config.yaml_loader import cfg_list, cfg_str, get_config_value
+from ai_news_digest.config.yaml_loader import cfg_list, get_config_value
 
 logger = logging.getLogger("ai-digest")
 

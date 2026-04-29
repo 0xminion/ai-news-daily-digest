@@ -16,7 +16,6 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from ai_news_digest.config.yaml_loader import get_data_dir
 

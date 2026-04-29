@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ai_news_digest.analysis.weekly import build_weekly_preview, render_weekly_highlights
+from ai_news_digest.analysis.weekly import render_weekly_highlights
 from ai_news_digest.app import _render_sample_daily
 from ai_news_digest.output.telegram import _format_digest
 
@@ -29,8 +29,8 @@ def main() -> int:
     outputs = {
         'fixture-daily-sample.txt': daily_text,
         'fixture-weekly-sample.txt': weekly_text,
-        'fixture-daily-telegram-default.html': '\n\n--- CHUNK ---\n\n'.join(default_chunks),
-        'fixture-daily-telegram-compact.html': '\n\n--- CHUNK ---\n\n'.join(compact_chunks),
+        'fixture-daily-telegram-default.md': '\n\n--- CHUNK ---\n\n'.join(default_chunks),
+        'fixture-daily-telegram-compact.md': '\n\n--- CHUNK ---\n\n'.join(compact_chunks),
     }
     for name, content in outputs.items():
         (OUTPUT_DIR / name).write_text(content, encoding='utf-8')

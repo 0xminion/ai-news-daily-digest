@@ -129,7 +129,7 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
         'Where is hype outrunning evidence in {topic}?',
         'What should be monitored daily to catch the next turn in {topic}?',
     ]
-    prompts = [
+    _ = [
         prompt_templates[idx % len(prompt_templates)].format(topic=item['topic'])
         for idx, item in enumerate(directions[: max(1, WEEKLY_QUESTIONS_COUNT)])
     ]
@@ -178,7 +178,6 @@ def build_weekly_preview(payload: dict) -> str:
 
 def render_weekly_highlights(payload: dict) -> str:
     from datetime import datetime
-    import re
     from ai_news_digest.output.telegram import _embed_links, _mdv2_escape
 
     today = datetime.now().strftime('%B %d, %Y')

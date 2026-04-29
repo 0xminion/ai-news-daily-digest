@@ -315,7 +315,7 @@ def _format_bullets(raw: str) -> str:
 
 def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]:
     profiles = get_destination_profiles()
-    profile = profiles.get(profile_name, profiles['default'])
+    profile = profiles.get(profile_name) or profiles.get('default') or {}
     # Defense-in-depth: strip any residual HTML tags from the raw LLM output
     raw_summary = _strip_html(raw_summary)
     sections = _parse_summary_sections(raw_summary)

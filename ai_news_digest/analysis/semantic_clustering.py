@@ -6,7 +6,7 @@ Model: qwen3-embedding:0.6b (or configured embedding.model).
 from __future__ import annotations
 
 import logging
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import requests
@@ -30,7 +30,8 @@ def _embedding_threshold() -> float:
     return float(val) if val is not None else 0.85
 
 
-def _fetch_embedding(text: str) -> np.ndarray | None:
+def _fetch_embedding(text: str) -> tuple[str, np.ndarray | None]:
+    """Fetch embedding for a single text. Returns (text, embedding_or_None)."""
     try:
         resp = requests.post(
             _embedding_url(),
@@ -41,10 +42,10 @@ def _fetch_embedding(text: str) -> np.ndarray | None:
         data = resp.json()
         embedding = data.get("embedding")
         if embedding:
-            return np.array(embedding, dtype=np.float32)
+            return text, np.array(embedding, dtype=np.float32)
     except Exception as exc:
-        logger.warning("Embedding fetch failed: %s", exc)
-    return None
+        logger.warning("Embedding fetch failed for '%s...': %s", text[:40], exc)
+    return text, None
 
 
 def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
@@ -66,10 +67,16 @@ def cluster_by_embeddings(articles: list[dict]) -> list[list[int]]:
         texts.append(f"{title}\n{snippet}")
 
     logger.info("Fetching embeddings for %d articles (%s)", len(articles), _embedding_model())
-    embeddings: list[np.ndarray | None] = []
-    for text in texts:
-        emb = _fetch_embedding(text)
-        embeddings.append(emb)
+    embeddings: list[np.ndarray | None] = [None] * len(texts)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_fetch_embedding, t): i for i, t in enumerate(texts)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                _, emb = future.result()
+                embeddings[idx] = emb
+            except Exception as exc:
+                logger.warning("Embedding task failed for article %d: %s", idx, exc)
 
     valid_indices = [i for i, e in enumerate(embeddings) if e is not None]
     if not valid_indices:

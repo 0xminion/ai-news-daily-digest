@@ -1,6 +1,8 @@
+"""Load feed configuration from YAML. No hardcoded feeds remain."""
 from __future__ import annotations
 
-"""Load feed configuration from YAML. No hardcoded feeds remain."""
+from typing import Any
+
 from ai_news_digest.config.yaml_loader import get_config
 
 
@@ -22,8 +24,6 @@ def _load_feeds(key: str) -> list[tuple[str, str]]:
 def _load_simple(key: str, default: Any):
     return get_config().get(key, default)
 
-
-from typing import Any
 
 RSS_FEEDS = _load_feeds("rss_feeds")
 PAGE_SOURCES = _load_feeds("page_sources")

@@ -1,11 +1,10 @@
+"""Config validation — extracted from old settings.py for cleaner imports."""
 from __future__ import annotations
 
-"""Config validation — extracted from old settings.py for cleaner imports."""
 from urllib.parse import urlparse
-
 import logging
 
-from .yaml_loader import cfg_bool, cfg_int, cfg_str, get_llm_settings, get_telegram_destinations
+from .yaml_loader import cfg_str, get_llm_settings, get_telegram_destinations
 
 logger = logging.getLogger("ai-digest")
 

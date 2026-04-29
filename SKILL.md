@@ -260,7 +260,28 @@ Before claiming formatting is correct:
 
 ---
 
-## 11. Operational Notes
+## 11. New Architecture (v2)
+
+### YAML-First Configuration
+All settings live in `config/default.yaml` (mandatory). Environment variables override via `AI_DIGEST__section__key=value`.
+- `config/feeds/*.yaml` — feed fragment files, deep-merged at load time
+- `config/dev.yaml` / `config/prod.yaml` — environment overrides
+
+### Semantic Clustering
+Articles are clustered by cosine similarity of title+snippet embeddings from `qwen3-embedding:0.6b` (or configured `embedding.model`). If the embedding endpoint is unavailable, falls back to singleton clusters (no data loss).
+
+### Circuit Breaker
+Per-source health is tracked in SQLite (`source_health` table). Sources with consecutive failures or zero-article timeouts are automatically excluded from fetching. Configurable via `circuit_breaker` section in YAML.
+
+### Entity Extraction
+LLM extracts people, organizations, coins, and projects from the daily digest. Results are persisted to SQLite and surfaced in weekly reports.
+
+### Observability Metrics
+Lightweight metrics logged at INFO level: `pipeline_start`, `pipeline_success`/`failure` (with latency), `fetch_latency` (per source), `articles_fetched`, `fetch_failed`, `dedup_hit_rate`.
+
+---
+
+## 12. Operational Notes
 
 ### RSS Ingestion — HTML Source Contamination
 - **Root cause:** VentureBeat, Ars Technica, TechCrunch emit raw HTML in RSS summaries: `<a href="...">`, `<b>`, `&#x27;` entities, merged bullet lines
@@ -269,7 +290,7 @@ Before claiming formatting is correct:
 
 ### LLM Timeout — kimi-k2.6:cloud
 - **Default timeout (120s) fails:** `ReadTimeout` after 3 retries with 3.5min generation time.
-- **Required:** `OLLAMA_TIMEOUT=600` or `LLM_TIMEOUT=600` when using kimi-k2.6 via Ollama.
+- **Required:** Set `llm.timeout: 600` in YAML when using kimi-k2.6 via Ollama.
 - **Performance tradeoff:** kimi-k2.6 ~20 chars/sec vs minimax-m2.7 ~140 chars/sec. Use kimi when structured JSON quality matters; use minimax when latency matters.
 
 ### Debugging Format Failures

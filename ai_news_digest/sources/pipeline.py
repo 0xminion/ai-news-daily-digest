@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
 import time
 
 from ai_news_digest.analysis.clustering import cluster_articles
@@ -11,9 +10,8 @@ from ai_news_digest.analysis.semantic_clustering import cluster_by_embeddings
 from ai_news_digest.analysis.relevance import filter_by_relevance
 from ai_news_digest.analysis.health import filter_disabled_sources, source_check
 from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, RESEARCH_SIGNALS_COUNT, RESEARCH_TOPIC_CAP_PER_TOPIC, logger, cfg_bool
-from ai_news_digest.config.yaml_loader import get_config_value
 from ai_news_digest.storage.archive import exclude_cross_day_duplicates
-from ai_news_digest.storage.sqlite_store import load_topic_memory, save_topic_memory, start_run, end_run, _now_iso
+from ai_news_digest.storage.sqlite_store import load_topic_memory, save_topic_memory, start_run, end_run
 from ai_news_digest.observability.metrics import set_run_id, fetch_latency, articles_fetched, fetch_failed, cluster_count, dedup_hit_rate, pipeline_start, pipeline_success
 from ai_news_digest.sources.common import _utc_today
 from .github_trending import fetch_github_trending
@@ -53,7 +51,6 @@ def _apply_source_caps(ranked: list[dict], caps: dict[str, int], default_cap: in
 def _infer_subtype(article: dict) -> str:
     source = (article.get("source") or "").lower()
     title = (article.get("title") or "").lower()
-    url = (article.get("url") or "").lower()
     if "arxiv" in source:
         return "paper"
     if "github" in source or "repo" in title:
@@ -99,10 +96,6 @@ def _apply_research_topic_caps(ranked: list[dict], limit: int = RESEARCH_SIGNALS
             break
     return selected
 
-def _fetch_articles_from_rss() -> list[dict]:
-    articles = fetch_rss_articles()
-    return articles
-
 def fetch_digest_inputs() -> dict:
     run_id = start_run()
     set_run_id(run_id)
@@ -111,18 +104,53 @@ def fetch_digest_inputs() -> dict:
 
     core_articles = []
     # Filter RSS through circuit breaker
-    from ai_news_digest.config import RSS_FEEDS as _RSS, ORTHOGONAL_RSS_FEEDS as _ORTH
-    _all_sources = [name for name, _ in _RSS] + [name for name, _ in _ORTH]
+    from ai_news_digest.config import RSS_FEEDS as _RSS
     active_rss = filter_disabled_sources(_RSS)
-    core_articles.extend(fetch_rss_articles(feeds=active_rss))
-    core_articles.extend(fetch_page_articles())
+    rss_start = time.time()
+    try:
+        rss_articles = fetch_rss_articles(feeds=active_rss)
+        core_articles.extend(rss_articles)
+        articles_fetched(len(rss_articles))
+        for name, _ in active_rss:
+            count = len([a for a in rss_articles if a.get("source") == name])
+            source_check(name, success=True, article_count=count)
+    except Exception as exc:
+        logger.error("RSS fetch failed: %s", exc)
+        fetch_failed("rss", str(exc))
+        for name, _ in active_rss:
+            source_check(name, success=False, article_count=0)
+    fetch_latency("rss", time.time() - rss_start)
 
-    research_articles = fetch_orthogonal_signal_articles()
+    pages_start = time.time()
+    try:
+        page_articles = fetch_page_articles()
+        core_articles.extend(page_articles)
+        articles_fetched(len(page_articles))
+    except Exception as exc:
+        logger.error("Page fetch failed: %s", exc)
+        fetch_failed("pages", str(exc))
+    fetch_latency("pages", time.time() - pages_start)
 
-    trending_articles = fetch_github_trending(top_n=3)
-    if trending_articles:
-        research_articles.extend(trending_articles)
-        logger.info("Added %d GitHub trending repos", len(trending_articles))
+    orth_start = time.time()
+    research_articles = []
+    try:
+        research_articles = fetch_orthogonal_signal_articles()
+        articles_fetched(len(research_articles))
+    except Exception as exc:
+        logger.error("Orthogonal fetch failed: %s", exc)
+        fetch_failed("orthogonal", str(exc))
+    fetch_latency("orthogonal", time.time() - orth_start)
+
+    trending_start = time.time()
+    try:
+        trending_articles = fetch_github_trending(top_n=3)
+        if trending_articles:
+            research_articles.extend(trending_articles)
+            logger.info("Added %d GitHub trending repos", len(trending_articles))
+    except Exception as exc:
+        logger.error("GitHub trending fetch failed: %s", exc)
+        fetch_failed("github_trending", str(exc))
+    fetch_latency("github_trending", time.time() - trending_start)
 
     core_articles = enrich_articles_with_hn(core_articles)
     logger.info("Found %d core and %d research articles before dedup", len(core_articles), len(research_articles))

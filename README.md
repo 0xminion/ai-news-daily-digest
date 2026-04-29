@@ -1,26 +1,23 @@
 # AI News Daily Digest
 
-A Python-powered Telegram bot that delivers a curated AI news digest with source clustering, signal-weighted ranking, cross-day deduplication, destination-specific output profiles, and Hermes agent auto-detection.
+A Python-powered Telegram bot that delivers a curated AI news digest with source clustering, semantic deduplication, signal-weighted ranking, cross-day dedup, destination-specific output profiles, Hermes agent auto-detection, entity extraction, and a YAML-first configuration system.
 
 **What you get every morning:**
 
-> **AI Daily Digest — April 23, 2026**
+> **AI Daily Digest — April 29, 2026**
 >
-> Enterprise AI agents took center stage as OpenAI and Google unveiled new workspace tools designed to automate business tasks, while Google challenged Nvidia's compute dominance with new TPUs. Meanwhile, robotics gained momentum with Tesla's earnings and Sony's ping-pong bot, even as concerns over the environmental impact of gas-powered data centers grew.
->
-> **Heating Up:**
-> • Google / DeepMind — 9 articles today vs 1.83 avg previously
-> • AI Agents — 9 articles today vs 2.5 avg previously
+> OpenAI and Musk are in court, Poolside released a new coding model, and enterprise GPU FOMO is driving prices up.
 >
 > **Highlights**
-> 1. **[OpenAI unveils Workspace Agents...](https://venturebeat.com/...)** — OpenAI introduced agents that perform tasks across Slack, Google Drive, and Salesforce.
-> 2. **[Google doesn't pay the Nvidia tax...](https://venturebeat.com/...)** — Eighth-gen TPUs for training and agentic inference.
+> 1. **[Sam Altman is "the face of evil"...](https://arstechnica.com/...)** — The lawsuit alleges OpenAI knew about violent ChatGPT users...
+> 2. **[Poolside launches Laguna XS.2...](https://venturebeat.com/...)** — Free open model for local agentic coding.
 >
 > **Also Worth Knowing**
-> • [Google updates Workspace to make AI your new office intern](https://techcrunch.com/...) (TechCrunch)
+> • [I've Covered Robots for Years. This One Is Different](https://www.wired.com/...) (Wired)
 >
 > **Research / Builder Signals**
-> • [repo] [langfuse/langfuse: Open source LLM engineering platform](https://github.com/langfuse/langfuse) (GitHub Trending)
+> • [paper] [Judging the Judges...](https://arxiv.org/...) (arXiv AI)
+> • [repo] [CJackHwang/ds2api](https://github.com/...) (GitHub Trending)
 
 ## How It Works
 
@@ -164,36 +161,46 @@ matching skills from `~/.hermes/skills/`).
 
 ## Configuration
 
-All config via environment variables (`.env` file):
+All configuration is **YAML-first** with zero hardcoded Python defaults.
+
+### Layer order
+1. `config/default.yaml` — mandatory base config
+2. `config/{ENV}.yaml` — environment override (`dev`, `prod`, etc.)
+3. `config/feeds/*.yaml` — feed fragment files (deep-merged)
+4. Environment variables — override anything (`AI_DIGEST__llm__model=kimi-k2.6:cloud`)
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `config/default.yaml` | Base settings: LLM, delivery, fetching, ranking, circuit breaker, embedding |
+| `config/dev.yaml` | Dev overrides (stdout output, INFO logging) |
+| `config/prod.yaml` | Prod overrides (telegram output, WARNING logging) |
+| `config/feeds/core.yaml` | Core RSS feeds |
+| `config/feeds/orthogonal.yaml` | arXiv / GitHub Blog signal feeds |
+
+### Environment overrides
+
+Legacy env vars are still supported and mapped into the YAML tree:
+
+```bash
+OLLAMA_MODEL=minimax-m2.7:cloud      # → llm.model
+TELEGRAM_BOT_TOKEN=xxx               # → delivery.bot_token
+OUTPUT_MODE=telegram                 # → delivery.output_mode
+AI_DIGEST__embedding__model=my-model # → embedding.model (new prefix style)
+```
+
+### Old `.env` config (still supported for secrets)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OUTPUT_MODE` | No | `stdout` | `stdout` prints digest to console; `telegram` delivers via Telegram bot |
 | `TELEGRAM_BOT_TOKEN` | When `OUTPUT_MODE=telegram` | — | Bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | When `OUTPUT_MODE=telegram` | — | Target chat/group ID (comma-separated for multiple) |
-| `TELEGRAM_DESTINATIONS_JSON` | No* | — | JSON array for multi-chat delivery with per-destination bot tokens |
-| `LLM_PROVIDER` | No | auto-detect | `ollama`, `openai`, `openrouter`, `anthropic` |
-| `LLM_MODEL` | No | auto-detect | Model name for a **200k+ context** model (e.g. `claude-3-5-sonnet-20240620`, `kimi-k2.6:cloud`) |
-| `LLM_API_BASE` | No | provider default | Optional custom API base |
-| `LLM_CONTEXT_LIMIT` | No | auto-infer | Optional explicit context length for custom or less-common 200k+ models |
-| `LLM_TIMEOUT` | No | `120` | LLM request timeout in seconds |
-| `LLM_MAX_TOKENS` | No | `1800` | Max tokens for LLM response |
+| `TELEGRAM_CHAT_ID` | When `OUTPUT_MODE=telegram` | — | Target chat/group ID |
 | `OPENAI_API_KEY` | No | — | Required when `LLM_PROVIDER=openai` |
 | `OPENROUTER_API_KEY` | No | — | Required when `LLM_PROVIDER=openrouter` |
 | `ANTHROPIC_API_KEY` | No | — | Required when `LLM_PROVIDER=anthropic` |
-| `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API host |
-| `OLLAMA_MODEL` | No | `minimax-m2.7:cloud` | Default Ollama model |
-| `RETENTION_DAYS` | No | `30` | Local daily/weekly report retention window |
-| `CROSS_DAY_DEDUP_DAYS` | No | `7` | Dedup window against archived reports |
-| `TREND_LOOKBACK_DAYS` | No | `7` | Lookback window for heating/cooling topic trends |
-| `RESEARCH_SIGNALS_COUNT` | No | `5` | Max items in Research / Builder Signals |
-| `HN_ENABLED` | No | `true` | Enable Hacker News signal enrichment |
-| `HN_MIN_POINTS` | No | `15` | Minimum HN points for a story signal |
-| `HN_MIN_COMMENTS` | No | `5` | Minimum HN comments for a story signal |
-| `ORTHOGONAL_SIGNALS_ENABLED` | No | `true` | Enable arXiv / GitHub Blog signal feeds |
-| `DATA_DIR` | No | `./data` | Base directory for archived digest copies |
-| `DELIVERY_HOUR` | No | `7` | Hour to deliver (24h format) |
-| `LOG_LEVEL` | No | `INFO` | Logging verbosity |
+
+All non-secret settings have moved to YAML. See `config/default.yaml` for the full schema.
 
 ## Getting Your Telegram Chat ID
 
@@ -205,48 +212,64 @@ All config via environment variables (`.env` file):
 ## Project Structure
 
 ```
+config/
+├── default.yaml               # Mandatory base config (source of truth)
+├── dev.yaml                    # Dev environment overrides
+├── prod.yaml                   # Prod environment overrides
+└── feeds/
+    ├── core.yaml               # Core RSS feeds
+    └── orthogonal.yaml         # arXiv / GitHub Blog signal feeds
+
 ai_news_digest/
-├── app.py                          # Daily + weekly orchestration
+├── app.py                      # Daily + weekly orchestration
 ├── config/
-│   ├── __init__.py                # Public API re-exports
-│   ├── settings.py                # Env loading, runtime settings, destination profiles, Hermes auto-detect
-│   ├── catalog.py                 # Re-export hub (backward compat)
-│   ├── feeds.py                   # RSS feeds, page sources, orthogonal feeds, GitHub trending config
-│   ├── keywords.py                # Regex-based AI keyword matching (word-boundary patterns)
-│   ├── topics.py                  # Trend topics, HN signal queries
-│   └── trust.py                   # Source trust weights
+│   ├── __init__.py            # Public API re-exports
+│   ├── yaml_loader.py         # Mandatory YAML config loader with hot-reload
+│   ├── settings.py            # Backward-compatible settings shim
+│   ├── validate.py            # Config validation
+│   ├── feeds.py               # YAML-driven feed loader
+│   ├── keywords.py            # Regex-based AI keyword matching
+│   ├── topics.py              # Trend topics, HN signal queries
+│   └── trust.py               # Source trust weights
 ├── prompts/
-│   ├── daily.md                   # Daily digest prompt (structured JSON output)
-│   └── weekly.md                  # Weekly highlights prompt
+│   ├── daily.md               # Daily digest prompt (structured JSON output)
+│   └── weekly.md              # Weekly highlights prompt
 ├── sources/
-│   ├── pipeline.py                # End-to-end fetch / cluster / rank pipeline
-│   ├── rss.py                     # RSS ingestion (with retry)
-│   ├── pages.py                   # Page scraping + archive fallback + SSRF protection
-│   ├── hackernews.py              # HN enrichment-only signals (with retry)
-│   ├── orthogonal.py              # arXiv / GitHub Blog signal layers
-│   └── github_trending.py         # GitHub trending AI/ML repos (scrapes github.com/trending)
+│   ├── pipeline.py            # End-to-end fetch / cluster / rank pipeline
+│   ├── rss.py                 # RSS ingestion (with retry + circuit breaker)
+│   ├── pages.py               # Page scraping + archive fallback + SSRF protection
+│   ├── hackernews.py          # HN enrichment-only signals
+│   ├── orthogonal.py          # arXiv / GitHub Blog signal layers
+│   └── github_trending.py     # GitHub trending AI/ML repos
 ├── analysis/
-│   ├── clustering.py              # Canonical story clustering
-│   ├── ranking.py                 # Signal-weighted ranking
-│   ├── trends.py                  # Heating / cooling topic tracking
-│   └── weekly.py                  # Weekly highlights synthesis (LLM + deterministic fallback)
+│   ├── clustering.py          # Canonical story clustering (exact + fuzzy)
+│   ├── semantic_clustering.py # Embedding-based clustering (qwen3-embedding:0.6b)
+│   ├── ranking.py             # Signal-weighted ranking
+│   ├── trends.py              # Heating / cooling topic tracking
+│   ├── relevance.py           # User-preference relevance filtering
+│   ├── health.py              # Circuit breaker (source health in SQLite)
+│   ├── entities.py            # LLM-based named entity extraction
+│   └── weekly.py              # Weekly highlights synthesis
 ├── storage/
-│   ├── archive.py                 # Daily/weekly artifacts, cross-day dedup, retention
-│   └── topic_memory.py            # Persistent topic/entity memory
+│   ├── archive.py             # Daily/weekly artifacts, cross-day dedup, retention
+│   ├── sqlite_store.py        # SQLite backend (runs, topic memory, entities, FTS)
+│   └── topic_memory.py        # Backward-compat shim over sqlite_store
 ├── llm/
-│   └── service.py                 # Provider routing + structured JSON output + validation + reasoning-model support
+│   └── service.py             # Provider routing + token guard + structured JSON
 ├── output/
-│   └── telegram.py                # Destination-specific Telegram rendering
+│   └── telegram.py            # Destination-specific Telegram MarkdownV2 rendering
+├── observability/
+│   └── metrics.py             # Lightweight pipeline metrics (latency, counts, dedup)
 ├── utils/
-│   └── retry.py                   # Exponential backoff retry decorator
+│   └── retry.py               # Exponential backoff retry decorator
 └── integrations/
     └── follow_builders/
-        └── adapter.py             # v2 integration seam for remote builder feeds
+        └── adapter.py         # v2 integration seam for remote builder feeds
 
 main.py                             # Daily entrypoint
 weekly.py                           # Weekly entrypoint
 dry_run.py                          # Quick dry run (fetch + sample render, no LLM)
-full_dry_run.py                     # Full pipeline dry run (fetch + summarize + print, no Telegram)
+full_dry_run.py                     # Full pipeline dry run (fetch + summarize + print)
 review_samples.py                   # Sample output generator from fixtures
 examples/
 ├── fixtures/                       # Test payloads
@@ -303,28 +326,34 @@ Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`, or let Hermes auto-detect handl
 
 ## Roadmap
 
-- [x] Trend tracking across days (what's heating up vs cooling down)
+- [x] YAML-first configuration (zero hardcoded Python defaults)
+- [x] Semantic clustering with Ollama embeddings (qwen3-embedding:0.6b)
+- [x] SQLite state backend (runs, topic memory, entities, daily/weekly reports, FTS5 search)
+- [x] Circuit breaker for source health (auto-disable failing feeds)
+- [x] LLM-based entity extraction (people, orgs, coins, projects)
+- [x] Observability metrics (pipeline latency, fetch counts, dedup hit rate)
+- [x] User-preference relevance filtering (interests/avoid profiles)
+- [x] Trend tracking across days
 - [x] Multi-chat support (multiple Telegram groups)
 - [x] Cross-day deduplication
 - [x] Hacker News as an additional source signal (enrichment-only)
 - [x] Signal-weighted ranking
 - [x] Canonical story clustering
-- [x] Persistent topic/entity memory
 - [x] Destination-specific output profiles
 - [x] Orthogonal signal layers (arXiv + GitHub Blog AI/ML)
 - [x] GitHub trending repos (top 3 AI/ML daily)
-- [x] Regex-based keyword matching (replaces brittle substring filter)
-- [x] Externalized LLM prompts (prompts/ directory)
+- [x] Regex-based keyword matching
+- [x] Externalized LLM prompts
 - [x] Structured JSON output with validation + fallback
 - [x] Exponential backoff retry on all external calls
-- [x] Config split into modular files (feeds, keywords, topics, trust)
-- [x] SSRF hardening (private IP blocking)
+- [x] SSRF hardening
 - [x] Token guard (context window truncation)
 - [x] Hermes agent auto-detection
 - [x] Reasoning-model compatibility (kimi-k2.6)
 - [ ] Weekly highlights full production CLI
 - [ ] follow-builders deep integration
 - [ ] Content enrichment for top articles (full-text fetch before LLM)
+- [ ] Archive web UI (search + browse)
 
 ## License
 

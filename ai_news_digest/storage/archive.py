@@ -2,14 +2,11 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from rapidfuzz import fuzz
 
 from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, RETENTION_DAYS, REPORT_ARCHIVE_DIR, WEEKLY_ARCHIVE_DIR, logger, get_llm_settings, _ensure_directories
-from ai_news_digest.storage.sqlite_store import save_daily_report as _sql_save_daily_report, save_weekly_report as _sql_save_weekly_report
-from ai_news_digest.storage.sqlite_store import list_recent_reports, search_archive
 
 _TRACKING_QUERY_KEYS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "utm_name", "ref", "ref_src", "fbclid", "gclid", "mc_cid", "mc_eid"}
 
@@ -89,15 +86,13 @@ def save_weekly_report(payload: dict, text: str) -> dict[str, str]:
     txt_path.write_text(text, encoding='utf-8')
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding='utf-8')
     try:
-        from ai_news_digest.storage.sqlite_store import save_daily_report as sql_save
-        sql_save(
+        from ai_news_digest.storage.sqlite_store import save_weekly_report as sql_save_weekly
+        sql_save_weekly(
             run_id=f"weekly-{timestamp.timestamp()}",
             saved_at=timestamp.isoformat(),
             digest_text=text,
             highlights_json=json.dumps(payload.get('highlights_of_the_week', [])),
-            research_json=json.dumps(payload.get('research_builder_signals', [])),
-            topics_json='{}',
-            article_count=0,
+            topics_json=json.dumps(payload.get('trending_directions', [])),
             provider='',
             model='',
             filepath=str(json_path),
@@ -148,26 +143,34 @@ def exclude_cross_day_duplicates(articles: list[dict], days: int = CROSS_DAY_DED
         fp = article_fingerprint(article)
         title_fp = normalize_title(article.get('title'))
         if fp and fp in historical:
-            skipped += 1; continue
+            skipped += 1
+            continue
         if fp and fp in seen_current:
-            skipped += 1; continue
+            skipped += 1
+            continue
         if title_fp and title_fp in historical_title_set:
-            skipped += 1; continue
+            skipped += 1
+            continue
         if title_fp and title_fp in seen_current_set:
-            skipped += 1; continue
+            skipped += 1
+            continue
         fuzzy_historical, fuzzy_current = False, False
         if title_fp:
             for prior_title in historical_titles:
                 if abs(len(prior_title) - len(title_fp)) <= 10 and fuzz.ratio(title_fp, prior_title) >= 90:
-                    fuzzy_historical = True; break
+                    fuzzy_historical = True
+                    break
             if not fuzzy_historical:
                 for prior_title in list(seen_current_set):
                     if abs(len(prior_title) - len(title_fp)) <= 10 and fuzz.ratio(title_fp, prior_title) >= 90:
-                        fuzzy_current = True; break
+                        fuzzy_current = True
+                        break
         if fuzzy_historical:
-            skipped += 1; continue
+            skipped += 1
+            continue
         if fuzzy_current:
-            skipped += 1; continue
+            skipped += 1
+            continue
         if fp:
             seen_current.add(fp)
         if title_fp:

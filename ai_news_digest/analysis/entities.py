@@ -8,8 +8,6 @@ from __future__ import annotations
 import json
 import re
 
-import requests
-
 from ai_news_digest.config import get_llm_settings, logger
 from ai_news_digest.storage.sqlite_store import get_entity_trends, record_entities
 
@@ -18,7 +16,6 @@ def _extract_via_llm(text: str, settings: dict) -> list[dict]:
     """Prompt the LLM to extract entities. Returns list of {name, type}."""
     max_tokens = max(200, settings.get("max_tokens", 1800) // 4)
     provider = settings["provider"]
-    model = settings["model"]
     prompt = (
         "Extract entities from the following AI digest text. "
         "Return ONLY a JSON array of objects with 'name' and 'type' keys.\n\n"
@@ -27,69 +24,23 @@ def _extract_via_llm(text: str, settings: dict) -> list[dict]:
         "JSON output:"
     )
 
-    def _call_llm(prompt: str) -> str:
+    # Reuse the LLM service's provider dispatch via a thin wrapper.
+    # _llm_summarize expects articles, but we can call the internal provider
+    # functions directly. However, they are private. Instead, we use a
+    # dedicated small-prompt path via the existing _ollama/_openai_compatible
+    # helpers by importing them.
+    from ai_news_digest.llm.service import _ollama, _openai_compatible, _anthropic
+
+    try:
         if provider == "ollama":
-            resp = requests.post(
-                f"{settings['ollama_host']}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-                timeout=settings["timeout"],
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "")
+            raw = _ollama(prompt, {**settings, "max_tokens": max_tokens})
         elif provider in {"openai", "openrouter"}:
-            api_base = settings["api_base"] or {
-                "openai": "https://api.openai.com/v1",
-                "openrouter": "https://openrouter.ai/api/v1",
-            }[provider]
-            headers = {
-                "Authorization": f"Bearer {settings[f'{provider}_api_key']}",
-                "Content-Type": "application/json",
-            }
-            if provider == "openrouter":
-                headers["HTTP-Referer"] = "https://github.com/0xminion/ai-news-daily-digest"
-                headers["X-Title"] = "ai-news-daily-digest"
-            body = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": "You extract named entities. Always respond with valid JSON."},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": settings.get("temperature", 0.2),
-                "max_tokens": max_tokens,
-            }
-            resp = requests.post(
-                f"{api_base}/chat/completions",
-                headers=headers,
-                json=body,
-                timeout=settings["timeout"],
-            )
-            resp.raise_for_status()
-            msg = resp.json().get("choices", [{}])[0].get("message", {})
-            raw = msg.get("content", "")
-            if not raw and msg.get("reasoning"):
-                raw = msg["reasoning"]
-            return raw
+            raw = _openai_compatible(prompt, {**settings, "max_tokens": max_tokens})
         elif provider == "anthropic":
-            resp = requests.post(
-                f"{settings['api_base'] or 'https://api.anthropic.com'}/v1/messages",
-                headers={"x-api-key": settings["anthropic_api_key"], "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                json={
-                    "model": model,
-                    "max_tokens": max_tokens,
-                    "temperature": settings.get("temperature", 0.2),
-                    "system": "You extract named entities. Always respond with valid JSON.",
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=settings["timeout"],
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return "\n".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
+            raw = _anthropic(prompt, {**settings, "max_tokens": max_tokens})
         else:
             raise ValueError(f"Unsupported LLM provider '{provider}' for entity extraction")
 
-    try:
-        raw = _call_llm(prompt)
         # Extract JSON array
         match = re.search(r'\[.*\]', raw, re.DOTALL)
         if match:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
 from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import summarize
-from ai_news_digest.output.telegram import _format_digest, _send_message, send_digest, send_weekly_report
+from ai_news_digest.output.telegram import _format_digest, send_digest, send_weekly_report
 from ai_news_digest.sources.pipeline import fetch_digest_inputs
 from ai_news_digest.storage.archive import prune_old_reports, save_daily_report, save_weekly_report
 
@@ -31,6 +31,7 @@ def run_daily(deliver: bool | None = None) -> int:
         payload['main_articles'],
         research_articles=payload['research_articles'],
     )
+    from ai_news_digest.analysis.entities import extract_and_record_entities
     prune_old_reports()
     save_daily_report(
         summary,
@@ -38,6 +39,7 @@ def run_daily(deliver: bool | None = None) -> int:
         trends=payload['trend_snapshot'],
         clusters=payload['main_clusters'] + payload['research_clusters'],
     )
+    extract_and_record_entities(payload['run_id'], summary)
     if deliver:
         ok = send_digest(summary, destinations=get_telegram_destinations())
         return 0 if ok else 1

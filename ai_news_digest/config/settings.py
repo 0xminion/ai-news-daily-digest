@@ -1,20 +1,19 @@
-from __future__ import annotations
-
 """Backward-compatible settings shim.
 
 All constants are loaded from yaml_loader at import time. New code should
 import directly from yaml_loader.
 """
+from __future__ import annotations
+
 import logging
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Avoid circular import: yaml_loader only re-exports constants, never imports from config
-from .yaml_loader import (
+# Avoid circular import: yaml_loader only re-exports constants, never imports from config  # noqa: E402
+from .yaml_loader import (  # noqa: E402,F401
     BASE_DIR,
     cfg_bool,
     cfg_dict,
@@ -133,11 +132,11 @@ def _ensure_directories():
     ensure_directories()
 
 
-from .feeds import RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS
-from .keywords import matches_ai_keywords, get_matched_tags
-from .topics import TREND_TOPICS, HN_SIGNAL_QUERIES, RESEARCH_SIGNAL_SOURCES
-from .trust import SOURCE_TRUST_WEIGHTS
-from .validate import validate_config
+from .feeds import RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS  # noqa: E402,F401
+from .keywords import matches_ai_keywords, get_matched_tags  # noqa: E402,F401
+from .topics import TREND_TOPICS, HN_SIGNAL_QUERIES, RESEARCH_SIGNAL_SOURCES  # noqa: E402,F401
+from .trust import SOURCE_TRUST_WEIGHTS  # noqa: E402,F401
+from .validate import validate_config  # noqa: E402,F401
 
 # Ranking — re-export constant (kept in a separate dict now)
 SOURCE_TRUST_WEIGHTS = cfg_dict("ranking.source_trust_weights") or SOURCE_TRUST_WEIGHTS
