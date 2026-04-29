@@ -1,0 +1,18 @@
+# Core news feeds (main RSS feeds + page sources)
+rss_feeds:
+  - name: Wired
+    url: https://www.wired.com/feed/rss
+  - name: TechCrunch
+    url: https://techcrunch.com/feed/
+  - name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+  - name: MIT Technology Review
+    url: https://www.technologyreview.com/feed/
+  - name: Reuters
+    url: "https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com%2Ftechnology%2F&filter=&filter_type=permit&format=Atom"
+  - name: VentureBeat
+    url: https://venturebeat.com/feed/
+
+page_sources: []

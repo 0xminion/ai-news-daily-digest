@@ -1,0 +1,9 @@
+# Orthogonal / research signal feeds
+
+orthogonal_rss_feeds:
+  - name: arXiv AI
+    url: https://rss.arxiv.org/rss/cs.AI
+  - name: arXiv ML
+    url: https://rss.arxiv.org/rss/cs.LG
+  - name: GitHub Blog AI/ML
+    url: https://github.blog/ai-and-ml/feed/

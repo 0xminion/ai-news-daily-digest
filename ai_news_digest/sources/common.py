@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
 
+def _utc_today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 def parse_entry_date(entry) -> Optional[datetime]:
     for field in ('published_parsed', 'updated_parsed', 'created_parsed'):

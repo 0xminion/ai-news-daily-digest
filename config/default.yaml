@@ -1,0 +1,127 @@
+# AI News Digest — Default Configuration
+# No hardcoded Python defaults exist. This file is the source of truth.
+
+environment: dev
+
+llm:
+  provider: ollama
+  model: minimax-m2.7:cloud
+  api_base: ""
+  timeout: 120
+  max_tokens: 1800
+  context_limit: null
+  temperature: 0.2
+  ollama_host: "http://localhost:11434"
+
+delivery:
+  output_mode: stdout
+  delivery_hour: 7
+  destinations: []
+  profiles:
+    default:
+      show_also_worth_knowing: true
+      max_highlights: 10
+      max_also: 10
+      max_research: 5
+      include_signal_annotations: true
+      headline_prefix: ""
+    compact:
+      show_also_worth_knowing: false
+      max_highlights: 5
+      max_also: 0
+      max_research: 3
+      include_signal_annotations: false
+      headline_prefix: "⚡ "
+    research:
+      show_also_worth_knowing: true
+      max_highlights: 12
+      max_also: 12
+      max_research: 6
+      include_signal_annotations: true
+      headline_prefix: "🔬 "
+
+fetching:
+  rss_window_hours: 24
+  user_agent: "Mozilla/5.0 (compatible; AI-News-Digest/2.0; +https://github.com/0xminion/ai-news-daily-digest)"
+  content_fetch_timeout: 30
+  min_article_text_length: 300
+  full_content_fetch_limit: 8
+  max_articles_to_summarize: 20
+
+hn:
+  enabled: true
+  min_points: 15
+  min_comments: 5
+  max_stories: 20
+  signal_window_hours: 36
+
+signals:
+  orthogonal_signals_enabled: true
+  research_signals_count: 5
+  research_topic_cap_per_topic: 1
+
+weekly:
+  highlights_count: 7
+  directions_count: 4
+  focus_count: 2
+  questions_count: 6
+  research_signals_count: 5
+  emerging_count: 3
+
+follow_builders:
+  enabled: false
+  feeds_json: ""
+  prompt_style: builders
+  schema_version: v1
+
+preferences:
+  interests: []
+  avoid: []
+  threshold: 0.6
+
+archive:
+  retention_days: 30
+  cross_day_dedup_days: 7
+  trend_lookback_days: 7
+
+observability:
+  enabled: true
+
+embedding:
+  model: qwen3-embedding:0.6b
+  host: "http://localhost:11434"
+  similarity_threshold: 0.85
+  semantic_clustering_enabled: true
+
+clustering:
+  similarity_threshold: 90
+
+ranking:
+  source_trust_weights:
+    Wired: 0.85
+    TechCrunch: 0.75
+    VentureBeat: 0.75
+    "MIT Technology Review": 0.9
+    "Ars Technica": 0.85
+    TheVerge: 0.8
+    Reuters: 0.87
+    arXiv: 0.95
+    "GitHub Blog AI/ML": 0.85
+    "GitHub Trending": 0.8
+    Default: 0.75
+
+circuit_breaker:
+  consecutive_failure_threshold: 3
+  zero_articles_timeout_hours: 48
+  auto_disable: true
+  check_interval_hours: 6
+  alert_enabled: true
+
+entity_extraction:
+  enabled: true
+  min_mention_count: 2
+  lookback_runs: 5
+
+log:
+  level: INFO
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"

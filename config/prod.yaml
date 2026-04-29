@@ -1,0 +1,18 @@
+# Prod overrides — used when AI_DIGEST_ENV=prod
+environment: prod
+
+llm:
+  model: minimax-m2.7:cloud
+  provider: ollama
+
+delivery:
+  output_mode: telegram
+
+observability:
+  enabled: true
+
+log:
+  level: WARNING
+
+circuit_breaker:
+  alert_enabled: true

@@ -1,0 +1,15 @@
+# Dev overrides — used when AI_DIGEST_ENV=dev (default)
+environment: dev
+
+llm:
+  model: minimax-m2.7:cloud
+  provider: ollama
+
+delivery:
+  output_mode: stdout
+
+observability:
+  enabled: true
+
+log:
+  level: INFO

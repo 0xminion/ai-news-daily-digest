@@ -142,6 +142,6 @@ class TestFetchArticles:
     ):
         fetch_articles()
         assert mock_save_topic_memory.called
-        saved = mock_save_topic_memory.call_args.args[0]
+        saved = mock_save_topic_memory.call_args.args[1]
         assert saved['saved_at']
         assert saved['topic_counts'] == {}

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .catalog import (
     RSS_FEEDS, PAGE_SOURCES, ORTHOGONAL_RSS_FEEDS,
     GITHUB_TRENDING_ENABLED, GITHUB_TRENDING_SINCE, GITHUB_TRENDING_LANGUAGE, GITHUB_TRENDING_TOP_N,
@@ -24,3 +26,42 @@ from .settings import (
     get_llm_settings, get_destination_profiles, get_telegram_destinations,
     get_follow_builders_config, validate_config, _ensure_directories,
 )
+from .yaml_loader import (
+    get_config,
+    get_config_value,
+    cfg_bool,
+    cfg_dict,
+    cfg_int,
+    cfg_list,
+    cfg_str,
+    ensure_directories,
+)
+
+# New public API: run_id-based state
+from ai_news_digest.storage.sqlite_store import (
+    start_run,
+    end_run,
+    load_topic_memory,
+    save_topic_memory,
+    load_follow_builders_state,
+    save_follow_builders_state,
+    migrate_from_json,
+)
+# Lazy migration on first import — only once per process
+import threading
+_migration_done = False
+_migration_lock = threading.Lock()
+
+def _lazy_migrate():
+    global _migration_done
+    if _migration_done:
+        return
+    with _migration_lock:
+        if _migration_done:
+            return
+        try:
+            migrate_from_json(STATE_DIR)
+        except Exception:
+            pass
+        _migration_done = True
+_lazy_migrate()

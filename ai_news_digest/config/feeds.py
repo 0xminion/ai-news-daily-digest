@@ -1,27 +1,36 @@
 from __future__ import annotations
 
-RSS_FEEDS = [
-    ("Wired", "https://www.wired.com/feed/rss"),
-    ("TechCrunch", "https://techcrunch.com/feed/"),
-    ("The Verge", "https://www.theverge.com/rss/index.xml"),
-    ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
-    ("MIT Technology Review", "https://www.technologyreview.com/feed/"),
-    (
-        "Reuters",
-        "https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com%2Ftechnology%2F&filter=&filter_type=permit&format=Atom",
-    ),
-    ("VentureBeat", "https://venturebeat.com/feed/"),
-]
+"""Load feed configuration from YAML. No hardcoded feeds remain."""
+from ai_news_digest.config.yaml_loader import get_config
 
-PAGE_SOURCES = []
 
-ORTHOGONAL_RSS_FEEDS = [
-    ("arXiv AI", "https://rss.arxiv.org/rss/cs.AI"),
-    ("arXiv ML", "https://rss.arxiv.org/rss/cs.LG"),
-    ("GitHub Blog AI/ML", "https://github.blog/ai-and-ml/feed/"),
-]
+def _load_feeds(key: str) -> list[tuple[str, str]]:
+    cfg = get_config()
+    raw = cfg.get(key, [])
+    feeds: list[tuple[str, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            name = item.get("name", "")
+            url = item.get("url", "")
+            if name and url:
+                feeds.append((name, url))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            feeds.append((item[0], item[1]))
+    return feeds
 
-GITHUB_TRENDING_ENABLED = True
-GITHUB_TRENDING_SINCE = "daily"
-GITHUB_TRENDING_LANGUAGE = ""
-GITHUB_TRENDING_TOP_N = 3
+
+def _load_simple(key: str, default: Any):
+    return get_config().get(key, default)
+
+
+from typing import Any
+
+RSS_FEEDS = _load_feeds("rss_feeds")
+PAGE_SOURCES = _load_feeds("page_sources")
+ORTHOGONAL_RSS_FEEDS = _load_feeds("orthogonal_rss_feeds")
+
+_GITHUB = get_config().get("github_trending", {})
+GITHUB_TRENDING_ENABLED = bool(_GITHUB.get("enabled", True))
+GITHUB_TRENDING_SINCE = str(_GITHUB.get("since", "daily"))
+GITHUB_TRENDING_LANGUAGE = str(_GITHUB.get("language", ""))
+GITHUB_TRENDING_TOP_N = int(_GITHUB.get("top_n", 3))
