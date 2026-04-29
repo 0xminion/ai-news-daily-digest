@@ -6,7 +6,6 @@ Model: qwen3-embedding:0.6b (or configured embedding.model).
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import requests
@@ -18,7 +17,7 @@ logger = logging.getLogger("ai-digest")
 
 def _embedding_url() -> str:
     host = str(get_config_value("embedding", "host") or cfg_str("llm.ollama_host")).rstrip("/")
-    return f"{host}/api/embeddings"
+    return f"{host}/api/embed"
 
 
 def _embedding_model() -> str:
@@ -30,22 +29,22 @@ def _embedding_threshold() -> float:
     return float(val) if val is not None else 0.85
 
 
-def _fetch_embedding(text: str) -> tuple[str, np.ndarray | None]:
-    """Fetch embedding for a single text. Returns (text, embedding_or_None)."""
+def _fetch_embeddings_batch(texts: list[str]) -> list[np.ndarray | None]:
+    """Fetch embeddings for a batch of texts. Returns list aligned with input."""
     try:
         resp = requests.post(
             _embedding_url(),
-            json={"model": _embedding_model(), "prompt": text[:512]},
-            timeout=60,
+            json={"model": _embedding_model(), "input": [t[:512] for t in texts]},
+            timeout=120,
         )
         resp.raise_for_status()
         data = resp.json()
-        embedding = data.get("embedding")
-        if embedding:
-            return text, np.array(embedding, dtype=np.float32)
+        embeddings = data.get("embeddings")
+        if embeddings and len(embeddings) == len(texts):
+            return [np.array(e, dtype=np.float32) for e in embeddings]
     except Exception as exc:
-        logger.warning("Embedding fetch failed for '%s...': %s", text[:40], exc)
-    return text, None
+        logger.warning("Embedding batch failed (%d texts): %s", len(texts), exc)
+    return [None] * len(texts)
 
 
 def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
@@ -68,15 +67,12 @@ def cluster_by_embeddings(articles: list[dict]) -> list[list[int]]:
 
     logger.info("Fetching embeddings for %d articles (%s)", len(articles), _embedding_model())
     embeddings: list[np.ndarray | None] = [None] * len(texts)
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_fetch_embedding, t): i for i, t in enumerate(texts)}
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                _, emb = future.result()
-                embeddings[idx] = emb
-            except Exception as exc:
-                logger.warning("Embedding task failed for article %d: %s", idx, exc)
+    batch_size = int(get_config_value("embedding", "batch_size") or 32)
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i : i + batch_size]
+        batch_embs = _fetch_embeddings_batch(batch_texts)
+        for j, emb in enumerate(batch_embs):
+            embeddings[i + j] = emb
 
     valid_indices = [i for i, e in enumerate(embeddings) if e is not None]
     if not valid_indices:

@@ -11,7 +11,7 @@ rss_feeds:
   - name: MIT Technology Review
     url: https://www.technologyreview.com/feed/
   - name: Reuters
-    url: "https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com%2Ftechnology%2F&filter=&filter_type=permit&format=Atom"
+    url: "https://news.google.com/rss/search?q=site:reuters.com+technology&hl=en-US&gl=US&ceid=US:en"
   - name: VentureBeat
     url: https://venturebeat.com/feed/
 

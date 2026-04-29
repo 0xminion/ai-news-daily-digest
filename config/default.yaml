@@ -92,6 +92,7 @@ embedding:
   host: "http://localhost:11434"
   similarity_threshold: 0.85
   semantic_clustering_enabled: true
+  batch_size: 16
 
 clustering:
   similarity_threshold: 90
