@@ -71,6 +71,14 @@ ALL headlines are links. Period.
 - [Canonical lays out a plan for AI…](https://...) (The Verge)
 ```
 
+### Numbered List Format — The `N.` Rule
+
+In the **Highlights** section, always use plain numbered lists:
+- Correct: `1.`, `2.`, `3.`
+- **Wrong:** `1\.`, `2\.`, `3\.`
+
+Do NOT escape the period after the number. The formatter will normalize `N\.` to `N.` if encountered, but the LLM must be instructed to never emit it.
+
 ### Highlights rendering
 
 ```
@@ -196,6 +204,7 @@ Rules:
 - Research / Builder Signals must be its own separate section.
 - Keep Research / Builder Signals to at most 5 items.
 - If a signal has a subtype, preserve it like [paper], [repo], etc.
+- Numbered lists must use `N.` (e.g., `1.`, `2.`). **Never escape the period:** do NOT output `N\.` in Highlights.
 
 You MUST respond with valid JSON matching this exact schema:
 {
@@ -212,7 +221,7 @@ You MUST respond with valid JSON matching this exact schema:
 |---|---|
 | **kimi-k2.6:cloud** | Generation is slow (~20 chars/sec). Set `OLLAMA_TIMEOUT=600`. Often puts reasoning in `reasoning` field instead of `content` — formatter already handles fallback. |
 | **kimi-k2.7:cloud** | Same structure compliance as k2.6. Increase timeout further if context is large. |
-| **minimax-m2.7:cloud** | Fast (~140 chars/sec). Standard timeout 120s is fine. |
+| **minimax-m2.7:cloud** | Fast (~140 chars/sec). Standard timeout 120s is fine. **Known formatting quirk:** Occasionally escapes numbered list periods (`4\.`). Ensure prompt explicitly instructs `N.` without backslash, or rely on post-process normalization. |
 | **gemma4:31b-cloud** | May produce fewer structured signals; validate JSON strictly. |
 
 ### Model Auto-Detection
@@ -240,6 +249,7 @@ Before claiming formatting is correct:
 | Concern | Rule |
 |---|---|
 | Headline links | `[Title](url)` everywhere |
+| Numbered list items | `1.`, `2.` — never `1\.`, `2\.` |
 | Also Worth Knowing truncation | **NEVER** — full headline |
 | Subtype prefix | `[paper]`, `[repo]`, `[builder feed]`, `[product / launch]` |
 | Telegram escaping | `_mdv2_escape()` on all text |
