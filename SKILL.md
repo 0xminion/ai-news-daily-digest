@@ -139,6 +139,17 @@ Source: Publication Name
 
 **Banned in output:** `<b>`, `</a>`, HTML tags, raw URLs instead of embeds, merged bullet lines.
 
+**Section header spacing — critical for Telegram:**
+In `_format_digest`, join section parts with `\n\n`, NOT `\n`. A single newline causes Telegram to glue the previous section's last line to the next header:
+
+```python
+# ❌ Wrong — header sticks to previous content
+parts.append(f'**Also Worth Knowing**\n{also}')
+
+# ✅ Correct — blank line before header
+parts.append(f'**Also Worth Knowing**\n\n{also}')
+```
+
 ---
 
 ## 5. HTML Sanitization — Two Gates
@@ -239,8 +250,8 @@ Before claiming formatting is correct:
 3. Check `any('[Headline](url)' in msg for msg in messages)` for embeds
 4. Check `any('Source:' in msg for msg in messages)` for attribution
 5. Check escaped brackets: `\\[` must be cleaned before assertion
-6. Run full test suite: `python -m pytest tests/test_telegram_bot.py -xvs`
-7. Run live digest: `python3 main.py` and visually inspect output
+7. Run full test suite: `python -m pytest tests/test_telegram_bot.py -xvs`
+8. Run live digest: `python3 scripts/daily.py` and visually inspect output
 
 ---
 
@@ -257,6 +268,7 @@ Before claiming formatting is correct:
 | Merged bullets | Split by `) - ` pattern |
 | Section headings | Normalized to title case before parsing |
 | Line boundaries | Preserved in `_strip_html` |
+| **Section header spacing** | **`\n\n`** between `Highlights` / `Also Worth Knowing` / `Research` in `_format_digest` |
 
 ---
 
@@ -289,27 +301,27 @@ As of the latest version, the default LLM provider is `"agent"` — the running 
 
 **How it works (file handshake):**
 ```
-1. python3 main.py
+1. python3 scripts/daily.py
    → Fetches articles, builds prompt, saves to data/agent_prompt.json
    → Prints "AGENT SUMMARIZATION REQUIRED" and exits with code 2
 
 2. Agent reads data/agent_prompt.json, generates structured JSON digest,
    saves response to data/agent_response.json
 
-3. python3 main.py
+3. python3 scripts/daily.py
    → Reads agent_response.json, validates JSON, formats for Telegram
    → Auto-deletes response file to prevent stale data on next run
 ```
 
 **For fully automated cron jobs**, pass the pre-generated summary via env var:
 ```bash
-AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python3 main.py
+AI_DIGEST_embedding__semantic_clustering_enabled=true AI_DIGEST_SKIP_RESEARCH_EMBEDDING=true python3 scripts/daily.py
 ```
 
 **Switching to external LLM** (Ollama/OpenRouter/Anthropic/OpenAI):
 ```bash
 # Override via env var
-AI_DIGEST__llm__provider=ollama AI_DIGEST__llm__model=minimax-m2.7:cloud python3 main.py
+AI_DIGEST__llm__provider=ollama AI_DIGEST__llm__model=minimax-m2.7:cloud python3 scripts/daily.py
 
 # Or edit config/default.yaml
 llm:
@@ -435,7 +447,7 @@ After running the full pipeline with semantic clustering enabled, disabled, and 
 **Opt-in methods:**
 ```bash
 # Env var (one-off)
-AI_DIGEST_embedding__semantic_clustering_enabled=true python3 main.py
+AI_DIGEST_embedding__semantic_clustering_enabled=true python3 scripts/daily.py
 
 # Config (persistent)
 # In config/default.yaml:
@@ -446,7 +458,7 @@ embedding:
 **Skip research embedding even when enabled:**
 ```bash
 # Only embed core articles (32), skip research (176)
-AI_DIGEST_embedding__semantic_clustering_enabled=true AI_DIGEST_SKIP_RESEARCH_EMBEDDING=true python3 main.py
+AI_DIGEST_embedding__semantic_clustering_enabled=true AI_DIGEST_SKIP_RESEARCH_EMBEDDING=true python3 scripts/daily.py
 ```
 
 **Timeout bump for opted-in runs:**

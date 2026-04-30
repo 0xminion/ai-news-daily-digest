@@ -229,7 +229,7 @@ Before claiming formatting is correct:
 4. Check `any('Source:' in msg for msg in messages)` for attribution
 5. Check escaped brackets: `\\[` must be cleaned before assertion
 6. Run full test suite: `python -m pytest tests/test_telegram_bot.py -xvs`
-7. Run live digest: `python3 main.py` and visually inspect output
+7. Run live digest: `python3 scripts/daily.py` and visually inspect output
 
 ---
 

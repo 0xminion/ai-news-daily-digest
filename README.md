@@ -81,14 +81,14 @@ chmod 600 .env
 
 ```bash
 # Step 1: Fetch articles and build the prompt
-python main.py
+python scripts/daily.py
 # → The script prints "AGENT SUMMARIZATION REQUIRED" and saves the prompt to data/agent_prompt.json
 
 # Step 2: Your agent reads the prompt and generates the structured JSON digest,
 #    then saves it to data/agent_response.json
 
 # Step 3: Re-run to format and deliver
-python main.py
+python scripts/daily.py
 ```
 
 When running inside a Hermes session, the agent detects the prompt automatically,
@@ -99,24 +99,24 @@ generates the summary, writes the response file, and re-runs the pipeline.
 ```bash
 # Ollama (local)
 ollama pull minimax-m2.7:cloud
-LLM_PROVIDER=ollama LLM_MODEL=minimax-m2.7:cloud python main.py
+LLM_PROVIDER=ollama LLM_MODEL=minimax-m2.7:cloud python scripts/daily.py
 
 # OpenRouter
-LLM_PROVIDER=openrouter LLM_MODEL=moonshotai/kimi-k2.6 OPENROUTER_API_KEY=*** python main.py
+LLM_PROVIDER=openrouter LLM_MODEL=moonshotai/kimi-k2.6 OPENROUTER_API_KEY=*** python scripts/daily.py
 ```
 
 **Telegram delivery:**
 
 ```bash
-python main.py --telegram
-python weekly.py --telegram
+python scripts/daily.py --telegram
+python scripts/weekly.py --telegram
 ```
 
 ### Schedule with cron
 
 ```bash
 crontab -e
-# Add: 0 7 * * * cd /path/to/ai-news-daily-digest && .venv/bin/python main.py
+# Add: 0 7 * * * cd /path/to/ai-news-daily-digest && .venv/bin/python scripts/daily.py
 ```
 
 ## Hermes Skill (Recommended)
@@ -268,11 +268,14 @@ ai_news_digest/
     └── follow_builders/
         └── adapter.py         # v2 integration seam for remote builder feeds
 
-main.py                             # Daily entrypoint
-weekly.py                           # Weekly entrypoint
-dry_run.py                          # Quick dry run (fetch + sample render, no LLM)
-full_dry_run.py                     # Full pipeline dry run (fetch + summarize + print)
-review_samples.py                   # Sample output generator from fixtures
+scripts/
+├── daily.py                        # Daily entrypoint
+├── weekly.py                       # Weekly entrypoint
+├── preview.py                      # Fetch-only preview (no LLM)
+├── dry_run.py                      # Full pipeline dry run (fetch + summarize + print)
+└── generate_samples.py             # Sample output generator from fixtures
+
+main.py                             # Backward-compat shim (delegates to scripts/daily.py)
 examples/
 ├── fixtures/                       # Test payloads
 ├── sample-daily-digest.md
@@ -305,7 +308,7 @@ The structured JSON output format is requested from providers that support it. F
 **Agent mode automation:** For fully hands-off cron jobs, pre-generate the summary JSON and pass it via the `AGENT_DIGEST_JSON` environment variable:
 
 ```bash
-AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python main.py
+AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python scripts/daily.py
 ```
 
 ## Error Handling

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Full pipeline dry run — fetch, summarize, format, print. No Telegram."""
+"""Full pipeline dry run — fetch, summarize, format, print. No Telegram delivery."""
 import logging
 import os
 

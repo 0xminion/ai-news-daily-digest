@@ -65,7 +65,7 @@ def run_daily(deliver: bool | None = None) -> int:
         print(f'Prompt saved to: {exc.prompt_path}')
         print(f'Please generate the structured JSON digest and save it to:')
         print(f'  {exc.response_path}')
-        print(f"\nThen re-run: python3 main.py{' --telegram' if deliver else ''}")
+        print(f"\nThen re-run: python3 scripts/daily.py{' --telegram' if deliver else ''}")
         print(f"{'='*60}\n")
         return 2
     from ai_news_digest.analysis.entities import extract_and_record_entities
@@ -189,7 +189,7 @@ def run_weekly(deliver: bool | None = None) -> int:
         print(f'Prompt saved to: {exc.prompt_path}')
         print(f'Please generate the structured JSON digest and save it to:')
         print(f'  {exc.response_path}')
-        print(f"\nThen re-run: python3 weekly.py{' --telegram' if deliver else ''}")
+        print(f"\nThen re-run: python3 scripts/weekly.py{' --telegram' if deliver else ''}")
         print(f"{'='*60}\n")
         return 2
     save_weekly_report(payload, text)

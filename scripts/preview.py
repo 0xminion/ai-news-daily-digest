@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dry run — fetch, summarize, print. No Telegram needed."""
+"""Fetch-only preview — shows what articles were collected without running the LLM."""
 import logging
 import os
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     from ai_news_digest.app import build_daily_sample
 
     print("=" * 60)
-    print("AI NEWS DAILY DIGEST — Dry Run")
+    print("AI NEWS DAILY DIGEST — Fetch Preview")
     print("=" * 60)
 
     payload, text = build_daily_sample()

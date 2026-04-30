@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+"""Generate sample outputs from fixtures for manual review."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from ai_news_digest.output.telegram import render_weekly_highlights, _format_digest
 from ai_news_digest.app import _render_sample_daily
+from ai_news_digest.output.telegram import _format_digest, render_weekly_highlights
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = BASE_DIR / 'examples' / 'fixtures'
 OUTPUT_DIR = BASE_DIR / 'generated_samples'
 
