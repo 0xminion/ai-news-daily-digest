@@ -145,10 +145,6 @@ def _apply_env_overrides(cfg: dict) -> dict:
         "WEEKLY_QUESTIONS_COUNT": ("weekly", "questions_count"),
         "WEEKLY_RESEARCH_SIGNALS_COUNT": ("weekly", "research_signals_count"),
         "WEEKLY_EMERGING_COUNT": ("weekly", "emerging_count"),
-        "FOLLOW_BUILDERS_ENABLED": ("follow_builders", "enabled"),
-        "FOLLOW_BUILDERS_FEEDS_JSON": ("follow_builders", "feeds_json"),
-        "FOLLOW_BUILDERS_PROMPT_STYLE": ("follow_builders", "prompt_style"),
-        "FOLLOW_BUILDERS_SCHEMA_VERSION": ("follow_builders", "schema_version"),
     }
     for env_key, path in _LEGACY_MAP.items():
         val = os.getenv(env_key)
@@ -417,24 +413,3 @@ def get_telegram_destinations() -> list[dict]:
     if not destinations and chat_id:
         destinations.append({"name": "destination-1", "chat_id": chat_id, "bot_token": bot_token, "profile": "default"})
     return destinations
-
-
-# ---------------------------------------------------------------------------
-# Follow builders
-# ---------------------------------------------------------------------------
-
-
-def get_follow_builders_config() -> dict:
-    feeds = []
-    raw_json = get_config_value("follow_builders", "feeds_json", default="")
-    if raw_json:
-        try:
-            feeds = json.loads(raw_json)
-        except Exception:
-            pass
-    return {
-        "enabled": bool(get_config_value("follow_builders", "enabled", default=False)),
-        "schema_version": str(get_config_value("follow_builders", "schema_version", default="v1")),
-        "prompt_style": str(get_config_value("follow_builders", "prompt_style", default="builders")),
-        "feeds": feeds,
-    }

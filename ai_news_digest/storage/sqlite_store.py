@@ -3,7 +3,6 @@
 Schema:
 - runs: pipeline execution tracking
 - topic_memory: daily topic count snapshots
-- follow_builders_state: builder feed state
 - entities: extracted named entities per run
 - daily_reports: archived daily digests with FTS
 - weekly_reports: archived weekly digests
@@ -53,11 +52,6 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             run_id TEXT,
             saved_at TEXT NOT NULL,
             snapshot TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS follow_builders_state (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            updated_at TEXT NOT NULL,
-            payload TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS entities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,40 +174,6 @@ def save_topic_memory(run_id: str, snapshot: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Follow builders state
-# ---------------------------------------------------------------------------
-
-
-def load_follow_builders_state() -> dict:
-    _ensure_schema()
-    with _db_lock:
-        with _conn() as conn:
-            row = conn.execute(
-                "SELECT payload FROM follow_builders_state WHERE id = 1"
-            ).fetchone()
-    if row:
-        try:
-            return {"payload": json.loads(row["payload"])}
-        except Exception:
-            pass
-    return {"payload": {}}
-
-
-def save_follow_builders_state(payload: dict) -> None:
-    _ensure_schema()
-    with _db_lock:
-        with _conn() as conn:
-            conn.execute(
-                """INSERT INTO follow_builders_state (id, updated_at, payload)
-                   VALUES (1, ?, ?)
-                   ON CONFLICT(id) DO UPDATE SET
-                   updated_at=excluded.updated_at, payload=excluded.payload""",
-                (_now_iso(), json.dumps(payload, ensure_ascii=False)),
-            )
-            conn.commit()
-
-
-# ---------------------------------------------------------------------------
 # Migration
 # ---------------------------------------------------------------------------
 
@@ -238,15 +198,6 @@ def migrate_from_json(state_dir: Path) -> None:
                                     ("migrated", snap.get("saved_at", _now_iso()), json.dumps(snap, ensure_ascii=False)),
                                 )
                             conn.commit()
-        except Exception:
-            pass
-    builder_path = Path(state_dir) / "follow_builders_state.json"
-    if builder_path.exists():
-        try:
-            data = json.loads(builder_path.read_text(encoding="utf-8"))
-            payload = data.get("payload", {})
-            if payload:
-                save_follow_builders_state(payload)
         except Exception:
             pass
 

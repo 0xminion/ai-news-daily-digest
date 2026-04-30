@@ -68,12 +68,6 @@ weekly:
   research_signals_count: 5
   emerging_count: 3
 
-follow_builders:
-  enabled: false
-  feeds_json: ""
-  prompt_style: builders
-  schema_version: v1
-
 preferences:
   interests: []
   avoid: []

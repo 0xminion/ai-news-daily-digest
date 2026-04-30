@@ -264,9 +264,6 @@ ai_news_digest/
 │   └── metrics.py             # Lightweight pipeline metrics (latency, counts, dedup)
 ├── utils/
 │   └── retry.py               # Exponential backoff retry decorator
-└── integrations/
-    └── follow_builders/
-        └── adapter.py         # v2 integration seam for remote builder feeds
 
 scripts/
 ├── daily.py                        # Daily entrypoint
@@ -363,9 +360,6 @@ AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python scripts/da
 - [x] Hermes agent auto-detection
 - [x] Reasoning-model compatibility (kimi-k2.6)
 - [ ] Weekly highlights full production CLI
-- [ ] follow-builders deep integration
-- [ ] Content enrichment for top articles (full-text fetch before LLM)
-- [ ] Archive web UI (search + browse)
 
 ## License
 

@@ -48,10 +48,6 @@ from .settings import (
     WEEKLY_QUESTIONS_COUNT as WEEKLY_QUESTIONS_COUNT,
     WEEKLY_RESEARCH_SIGNALS_COUNT as WEEKLY_RESEARCH_SIGNALS_COUNT,
     WEEKLY_EMERGING_COUNT as WEEKLY_EMERGING_COUNT,
-    FOLLOW_BUILDERS_ENABLED as FOLLOW_BUILDERS_ENABLED,
-    FOLLOW_BUILDERS_FEEDS_JSON as FOLLOW_BUILDERS_FEEDS_JSON,
-    FOLLOW_BUILDERS_PROMPT_STYLE as FOLLOW_BUILDERS_PROMPT_STYLE,
-    FOLLOW_BUILDERS_SCHEMA_VERSION as FOLLOW_BUILDERS_SCHEMA_VERSION,
     LOG_LEVEL as LOG_LEVEL,
     logger as logger,
     MAX_ARTICLES_TO_SUMMARIZE as MAX_ARTICLES_TO_SUMMARIZE,
@@ -66,7 +62,6 @@ from .settings import (
     get_llm_settings as get_llm_settings,
     get_destination_profiles as get_destination_profiles,
     get_telegram_destinations as get_telegram_destinations,
-    get_follow_builders_config as get_follow_builders_config,
     validate_config as validate_config,
     _ensure_directories as _ensure_directories,
 )

@@ -9,8 +9,6 @@ from .archive import (
     save_weekly_report as save_weekly_report,
 )
 from .topic_memory import (
-    load_follow_builders_state as load_follow_builders_state,
     load_topic_memory as load_topic_memory,
-    save_follow_builders_state as save_follow_builders_state,
     save_topic_memory as save_topic_memory,
 )

@@ -24,7 +24,6 @@ from .yaml_loader import (  # noqa: E402,F401
     get_config_value,
     get_data_dir,
     get_destination_profiles,
-    get_follow_builders_config,
     get_llm_settings,
     get_report_archive_dir,
     get_state_dir,
@@ -92,12 +91,6 @@ WEEKLY_FOCUS_COUNT = cfg_int("weekly.focus_count")
 WEEKLY_QUESTIONS_COUNT = cfg_int("weekly.questions_count")
 WEEKLY_RESEARCH_SIGNALS_COUNT = cfg_int("weekly.research_signals_count")
 WEEKLY_EMERGING_COUNT = cfg_int("weekly.emerging_count")
-
-# Follow builders
-FOLLOW_BUILDERS_ENABLED = cfg_bool("follow_builders.enabled")
-FOLLOW_BUILDERS_FEEDS_JSON = cfg_str("follow_builders.feeds_json")
-FOLLOW_BUILDERS_PROMPT_STYLE = cfg_str("follow_builders.prompt_style")
-FOLLOW_BUILDERS_SCHEMA_VERSION = cfg_str("follow_builders.schema_version")
 
 # Logging
 LOG_LEVEL = cfg_str("log.level")
