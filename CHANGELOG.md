@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-30
+
+### Changed
+- **Semantic clustering disabled by default**: After live benchmarking, `qwen3-embedding:0.6b` on CPU adds ~90s for 32 core articles with zero output difference on typical daily volume. Set `embedding.semantic_clustering_enabled: false` in `config/default.yaml`. Opt-in by setting the env var `AI_DIGEST_embedding__semantic_clustering_enabled=true` or editing config.
+- Embedding HTTP timeout bumped from 120s to 300s to accommodate larger batches when opted-in.
+- Added `AI_DIGEST_SKIP_RESEARCH_EMBEDDING` env var to skip research-article embedding even when semantic clustering is enabled.
+
+### Fixed
+- Agent-mode weekly summary now returns a validated dict instead of a JSON string, fixing `AttributeError` in weekly agent path.
+
 ## 2026-04-23
 
 ### Added

@@ -425,7 +425,7 @@ embedding:
   model: qwen3-embedding:0.6b
   host: "http://localhost:11434"
   similarity_threshold: 0.85
-  semantic_clustering_enabled: true
+  semantic_clustering_enabled: false
   batch_size: 16
 ```
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 import time
 
@@ -159,9 +160,12 @@ def fetch_digest_inputs() -> dict:
     research_articles, skipped_research = exclude_cross_day_duplicates(research_articles, days=CROSS_DAY_DEDUP_DAYS)
     dedup_hit_rate(hits=skipped_core + skipped_research, evaluated=len(core_articles) + len(research_articles) + skipped_core + skipped_research)
 
-    # Semantic clustering
-    core_articles = _apply_semantic_clustering(core_articles)
-    research_articles = _apply_semantic_clustering(research_articles)
+    # Semantic clustering (disabled by default — qwen3-embedding:0.6b on CPU adds
+    # ~90s for 32 core articles with no quality improvement at typical daily volume)
+    if cfg_bool("embedding.semantic_clustering_enabled"):
+        core_articles = _apply_semantic_clustering(core_articles)
+        if not os.environ.get("AI_DIGEST_SKIP_RESEARCH_EMBEDDING"):
+            research_articles = _apply_semantic_clustering(research_articles)
     cluster_count(len(core_articles) + len(research_articles))
 
     # Relevance filtering

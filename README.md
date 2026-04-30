@@ -245,7 +245,7 @@ ai_news_digest/
 │   └── github_trending.py     # GitHub trending AI/ML repos
 ├── analysis/
 │   ├── clustering.py          # Canonical story clustering (exact + fuzzy)
-│   ├── semantic_clustering.py # Embedding-based clustering (qwen3-embedding:0.6b)
+│   ├── semantic_clustering.py # Embedding-based clustering (qwen3-embedding:0.6b, default OFF)
 │   ├── ranking.py             # Signal-weighted ranking
 │   ├── trends.py              # Heating / cooling topic tracking
 │   ├── relevance.py           # User-preference relevance filtering

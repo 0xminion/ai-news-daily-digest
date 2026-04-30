@@ -35,7 +35,7 @@ def _fetch_embeddings_batch(texts: list[str]) -> list[np.ndarray | None]:
         resp = requests.post(
             _embedding_url(),
             json={"model": _embedding_model(), "input": [t[:512] for t in texts]},
-            timeout=120,
+            timeout=300,
         )
         resp.raise_for_status()
         data = resp.json()
