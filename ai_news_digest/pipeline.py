@@ -9,17 +9,12 @@ from ai_news_digest.analysis.ranking import rank_clustered_articles
 from ai_news_digest.analysis.trends import compute_trend_snapshot, extract_topics
 from ai_news_digest.analysis.semantic_clustering import cluster_by_embeddings
 from ai_news_digest.analysis.relevance import filter_by_relevance
-from ai_news_digest.analysis.health import filter_disabled_sources, source_check
 from ai_news_digest.config import CROSS_DAY_DEDUP_DAYS, MAX_ARTICLES_TO_SUMMARIZE, RESEARCH_SIGNALS_COUNT, RESEARCH_TOPIC_CAP_PER_TOPIC, logger, cfg_bool
-from ai_news_digest.storage.archive import exclude_cross_day_duplicates
-from ai_news_digest.storage.sqlite_store import load_topic_memory, save_topic_memory, start_run, end_run
+from ai_news_digest.storage.unified import storage as _storage
 from ai_news_digest.observability.metrics import set_run_id, fetch_latency, articles_fetched, fetch_failed, cluster_count, dedup_hit_rate, pipeline_start, pipeline_success
+from ai_news_digest.sources.adapter import build_default_adapters, SourceAdapter
 from ai_news_digest.sources.common import _utc_today
-from ai_news_digest.sources.github_trending import fetch_github_trending
 from ai_news_digest.sources.hackernews import enrich_articles_with_hn
-from ai_news_digest.sources.orthogonal import fetch_orthogonal_signal_articles
-from ai_news_digest.sources.pages import fetch_page_articles
-from ai_news_digest.sources.rss import fetch_rss_articles
 
 def _apply_semantic_clustering(articles: list[dict]) -> list[dict]:
     if not cfg_bool("embedding.semantic_clustering_enabled"):
@@ -95,67 +90,39 @@ def _apply_research_topic_caps(ranked: list[dict], limit: int = RESEARCH_SIGNALS
             break
     return selected
 
-def fetch_digest_inputs() -> dict:
-    run_id = start_run()
+def fetch_digest_inputs(adapters: list[SourceAdapter] | None = None) -> dict:
+    run_id = _storage.start_run()
     set_run_id(run_id)
     pipeline_start()
     start_time = time.time()
 
-    core_articles = []
-    # Filter RSS through circuit breaker
-    from ai_news_digest.config import RSS_FEEDS as _RSS
-    active_rss = filter_disabled_sources(_RSS)
-    rss_start = time.time()
-    try:
-        rss_articles = fetch_rss_articles(feeds=active_rss)
-        core_articles.extend(rss_articles)
-        articles_fetched(len(rss_articles))
-        for name, _ in active_rss:
-            count = len([a for a in rss_articles if a.get("source") == name])
-            source_check(name, success=True, article_count=count)
-    except Exception as exc:
-        logger.error("RSS fetch failed: %s", exc)
-        fetch_failed("rss", str(exc))
-        for name, _ in active_rss:
-            source_check(name, success=False, article_count=0)
-    fetch_latency("rss", time.time() - rss_start)
+    adapters = adapters or build_default_adapters()
+    core_articles: list[dict] = []
+    research_articles: list[dict] = []
 
-    pages_start = time.time()
-    try:
-        page_articles = fetch_page_articles()
-        core_articles.extend(page_articles)
-        articles_fetched(len(page_articles))
-    except Exception as exc:
-        logger.error("Page fetch failed: %s", exc)
-        fetch_failed("pages", str(exc))
-    fetch_latency("pages", time.time() - pages_start)
-
-    orth_start = time.time()
-    research_articles = []
-    try:
-        research_articles = fetch_orthogonal_signal_articles()
-        articles_fetched(len(research_articles))
-    except Exception as exc:
-        logger.error("Orthogonal fetch failed: %s", exc)
-        fetch_failed("orthogonal", str(exc))
-    fetch_latency("orthogonal", time.time() - orth_start)
-
-    trending_start = time.time()
-    try:
-        trending_articles = fetch_github_trending(top_n=3)
-        if trending_articles:
-            research_articles.extend(trending_articles)
-            logger.info("Added %d GitHub trending repos", len(trending_articles))
-    except Exception as exc:
-        logger.error("GitHub trending fetch failed: %s", exc)
-        fetch_failed("github_trending", str(exc))
-    fetch_latency("github_trending", time.time() - trending_start)
+    for adapter in adapters:
+        source_start = time.time()
+        try:
+            articles = adapter.fetch()
+            articles_fetched(len(articles))
+            if adapter.name == "github_trending":
+                research_articles.extend(articles)
+                if articles:
+                    logger.info("Added %d GitHub trending repos", len(articles))
+            elif adapter.name == "orthogonal":
+                research_articles.extend(articles)
+            else:
+                core_articles.extend(articles)
+        except Exception as exc:
+            logger.error("%s fetch failed: %s", adapter.name, exc)
+            fetch_failed(adapter.name, str(exc))
+        fetch_latency(adapter.name, time.time() - source_start)
 
     core_articles = enrich_articles_with_hn(core_articles)
     logger.info("Found %d core and %d research articles before dedup", len(core_articles), len(research_articles))
 
-    core_articles, skipped_core = exclude_cross_day_duplicates(core_articles, days=CROSS_DAY_DEDUP_DAYS)
-    research_articles, skipped_research = exclude_cross_day_duplicates(research_articles, days=CROSS_DAY_DEDUP_DAYS)
+    core_articles, skipped_core = _storage.exclude_cross_day_duplicates(core_articles, days=CROSS_DAY_DEDUP_DAYS)
+    research_articles, skipped_research = _storage.exclude_cross_day_duplicates(research_articles, days=CROSS_DAY_DEDUP_DAYS)
     dedup_hit_rate(hits=skipped_core + skipped_research, evaluated=len(core_articles) + len(research_articles) + skipped_core + skipped_research)
 
     # Semantic clustering (disabled by default — qwen3-embedding:0.6b on CPU adds
@@ -172,7 +139,7 @@ def fetch_digest_inputs() -> dict:
 
     all_articles = core_articles + research_articles
     trend_snapshot = compute_trend_snapshot(all_articles)
-    topic_memory = load_topic_memory()
+    topic_memory = _storage.load_topic_memory()
 
     core_clusters = cluster_articles(core_articles)
     research_clusters = cluster_articles(research_articles)
@@ -195,14 +162,14 @@ def fetch_digest_inputs() -> dict:
     capped_research = _apply_research_topic_caps(source_capped_research, limit=RESEARCH_SIGNALS_COUNT)
 
     day_counts = trend_snapshot.get("daily_topic_counts", [])
-    save_topic_memory(run_id, {
+    _storage.save_topic_memory(run_id, {
         "saved_at": day_counts[-1].get("date") if day_counts else _utc_today(),
         "topic_counts": day_counts[-1].get("counts", {}) if day_counts else {},
     })
 
     duration = time.time() - start_time
     pipeline_success(duration)
-    end_run(run_id)
+    _storage.end_run(run_id)
 
     return {
         "run_id": run_id,

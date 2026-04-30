@@ -100,12 +100,13 @@ class TestHackerNewsSignals:
 
 
 class TestFetchArticles:
-    @patch('ai_news_digest.pipeline.fetch_orthogonal_signal_articles', return_value=[])
-    @patch('ai_news_digest.pipeline.fetch_page_articles', return_value=[])
-    @patch('ai_news_digest.pipeline.enrich_articles_with_hn', side_effect=lambda articles: articles)
-    @patch('ai_news_digest.pipeline.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
-    @patch('ai_news_digest.pipeline.fetch_rss_articles')
-    def test_fetch_articles_returns_ranked_articles(self, mock_rss, _mock_cross_day, _mock_hn, _mock_pages, _mock_orth):
+    @patch('ai_news_digest.sources.github_trending.fetch_github_trending', return_value=[])
+    @patch('ai_news_digest.sources.orthogonal.fetch_orthogonal_signal_articles', return_value=[])
+    @patch('ai_news_digest.sources.pages.fetch_page_articles', return_value=[])
+    @patch('ai_news_digest.sources.hackernews.enrich_articles_with_hn', side_effect=lambda articles: articles)
+    @patch('ai_news_digest.storage.archive.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
+    @patch('ai_news_digest.sources.rss.fetch_rss_articles')
+    def test_fetch_articles_returns_ranked_articles(self, mock_rss, _mock_cross_day, _mock_hn, _mock_pages, _mock_orth, _mock_trending):
         mock_rss.return_value = [
             {'title': 'New AI model released by OpenAI', 'summary': 'OpenAI released a new large language model', 'url': 'https://example.com/article', 'source': 'Test', 'published': '2026-04-10T08:00:00+00:00'}
         ]
@@ -115,17 +116,17 @@ class TestFetchArticles:
         assert isinstance(trend_snapshot, dict)
         assert len(clusters) == 1
 
-    @patch('ai_news_digest.pipeline.save_topic_memory')
+    @patch('ai_news_digest.pipeline._storage.save_topic_memory')
     @patch('ai_news_digest.pipeline.rank_clustered_articles', side_effect=lambda *args, **kwargs: [])
     @patch('ai_news_digest.pipeline.cluster_articles', side_effect=lambda articles: [])
-    @patch('ai_news_digest.pipeline.load_topic_memory', return_value={})
+    @patch('ai_news_digest.pipeline._storage.load_topic_memory', return_value={})
     @patch('ai_news_digest.pipeline.compute_trend_snapshot', return_value={'daily_topic_counts': []})
-    @patch('ai_news_digest.pipeline.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
-    @patch('ai_news_digest.pipeline.enrich_articles_with_hn', side_effect=lambda articles: articles)
-    @patch('ai_news_digest.pipeline.fetch_github_trending', return_value=[])
-    @patch('ai_news_digest.pipeline.fetch_orthogonal_signal_articles', return_value=[])
-    @patch('ai_news_digest.pipeline.fetch_page_articles', return_value=[])
-    @patch('ai_news_digest.pipeline.fetch_rss_articles', return_value=[])
+    @patch('ai_news_digest.storage.archive.exclude_cross_day_duplicates', side_effect=lambda articles, days: (articles, 0))
+    @patch('ai_news_digest.sources.hackernews.enrich_articles_with_hn', side_effect=lambda articles: articles)
+    @patch('ai_news_digest.sources.github_trending.fetch_github_trending', return_value=[])
+    @patch('ai_news_digest.sources.orthogonal.fetch_orthogonal_signal_articles', return_value=[])
+    @patch('ai_news_digest.sources.pages.fetch_page_articles', return_value=[])
+    @patch('ai_news_digest.sources.rss.fetch_rss_articles', return_value=[])
     def test_fetch_articles_handles_empty_day_counts(
         self,
         _mock_rss,

@@ -465,13 +465,16 @@ def _agent_summarize(
     main_articles: list[dict],
     research_articles: list[dict],
     weekly: bool = False,
-) -> str:
+) -> dict:
     """Agent-native mode: write prompt to disk, check for agent-written response.
 
     Two automation paths are supported:
     1. AGENT_DIGEST_JSON env var — pass the raw JSON string directly.
     2. File handshake — write prompt to data/agent_prompt.json, wait for
        data/agent_response.json (created by the agent or user).
+
+    Returns the validated structured dict regardless of weekly/daily mode.
+    Callers are responsible for converting to text if needed.
     """
     import os
 
@@ -489,9 +492,9 @@ def _agent_summarize(
             parsed = _extract_json(env_json)
             if weekly:
                 validated = _validate_weekly(parsed)
-                return validated
-            validated = _validate_digest(parsed)
-            return _structured_to_text(validated)
+            else:
+                validated = _validate_digest(parsed)
+            return validated
         except (json.JSONDecodeError, ValueError) as exc:
             logger.warning('AGENT_DIGEST_JSON invalid (%s), falling back to file mode', exc)
 
@@ -551,11 +554,10 @@ def _agent_summarize(
             parsed = _extract_json(raw)
             if weekly:
                 validated = _validate_weekly(parsed)
-                response_path.unlink()
-                return validated
-            validated = _validate_digest(parsed)
+            else:
+                validated = _validate_digest(parsed)
             response_path.unlink()
-            return _structured_to_text(validated)
+            return validated
         except Exception as exc:
             logger.warning('Agent response file invalid (%s), waiting for new response', exc)
 
@@ -574,7 +576,8 @@ def summarize(main_articles: list[dict], research_articles: list[dict] | None = 
 
     if settings['provider'] == 'agent':
         prompt = _build_prompt(main_articles, research_articles, max_tokens=None)
-        return _agent_summarize(prompt, main_articles, research_articles)
+        result = _agent_summarize(prompt, main_articles, research_articles)
+        return _structured_to_text(result)
 
     context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
     # Reserve tokens for response generation + prompt overhead

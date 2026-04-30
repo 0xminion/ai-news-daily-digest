@@ -12,3 +12,4 @@ from .topic_memory import (
     load_topic_memory as load_topic_memory,
     save_topic_memory as save_topic_memory,
 )
+from .unified import UnifiedStorage as UnifiedStorage, storage as storage
