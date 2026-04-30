@@ -11,9 +11,10 @@ from ai_news_digest.analysis.health import filter_disabled_sources, source_check
 @pytest.fixture(autouse=True)
 def _reset_health_state(tmp_path):
     """Wipe the source_health table before each test."""
-    from ai_news_digest.storage.sqlite_store import _conn, _ensure_schema
+    from ai_news_digest.analysis.health import _ensure_source_health_table
+    from ai_news_digest.storage.sqlite_store import _conn
 
-    _ensure_schema()
+    _ensure_source_health_table()
     with _conn() as conn:
         conn.execute("DELETE FROM source_health")
         conn.commit()
