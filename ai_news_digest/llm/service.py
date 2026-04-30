@@ -490,7 +490,7 @@ def _agent_summarize(
             parsed = _extract_json(env_json)
             if weekly:
                 validated = _validate_weekly(parsed)
-                return json.dumps(validated)
+                return validated
             validated = _validate_digest(parsed)
             return _structured_to_text(validated)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -553,7 +553,7 @@ def _agent_summarize(
             if weekly:
                 validated = _validate_weekly(parsed)
                 response_path.unlink()
-                return json.dumps(validated)
+                return validated
             validated = _validate_digest(parsed)
             response_path.unlink()
             return _structured_to_text(validated)

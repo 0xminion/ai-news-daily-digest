@@ -283,6 +283,76 @@ Lightweight metrics logged at INFO level: `pipeline_start`, `pipeline_success`/`
 
 ## 12. Operational Notes
 
+### Agent-Native Summarization Mode (Default)
+
+As of the latest version, the default LLM provider is `"agent"` — the running agent generates the summary directly. No external API keys, no Ollama setup, no local models required.
+
+**How it works (file handshake):**
+```
+1. python3 main.py
+   → Fetches articles, builds prompt, saves to data/agent_prompt.json
+   → Prints "AGENT SUMMARIZATION REQUIRED" and exits with code 2
+
+2. Agent reads data/agent_prompt.json, generates structured JSON digest,
+   saves response to data/agent_response.json
+
+3. python3 main.py
+   → Reads agent_response.json, validates JSON, formats for Telegram
+   → Auto-deletes response file to prevent stale data on next run
+```
+
+**For fully automated cron jobs**, pass the pre-generated summary via env var:
+```bash
+AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python3 main.py
+```
+
+**Switching to external LLM** (Ollama/OpenRouter/Anthropic/OpenAI):
+```bash
+# Override via env var
+AI_DIGEST__llm__provider=ollama AI_DIGEST__llm__model=minimax-m2.7:cloud python3 main.py
+
+# Or edit config/default.yaml
+llm:
+  provider: ollama
+  model: minimax-m2.7:cloud
+```
+
+---
+
+### Config Cascade Gotcha — Env Vars Override YAML Silently
+
+The pipeline loads config in this order: `default.yaml` → `dev.yaml`/`prod.yaml` → `.env` (via dotenv) → legacy env vars (`OLLAMA_MODEL`, `LLM_PROVIDER`, etc.).
+
+**Critical finding:** If your `.env` file sets `OLLAMA_MODEL=minimax-m2.7:cloud`, it will silently override `config/default.yaml` even after you change the YAML. To fully switch the default provider to `"agent"`, you must:
+1. Update `config/default.yaml` → `llm.provider: agent`
+2. Update `config/dev.yaml` → `llm.provider: agent` (dev overrides default)
+3. Update `config/prod.yaml` → `llm.provider: agent` (prod overrides default)
+4. Remove `OLLAMA_MODEL` and `LLM_PROVIDER` from your `.env` file
+
+**Verification:**
+```python
+from ai_news_digest.config import get_llm_settings
+print(get_llm_settings()['provider'])  # Should print "agent"
+```
+
+---
+
+### YAML Env Override Format
+
+Environment variables override nested YAML keys using the `AI_DIGEST_` prefix with **single underscore** delimiters and **double underscore** for nesting:
+
+```bash
+# Correct — single underscore after AI_DIGEST, double underscore for nesting
+AI_DIGEST_embedding__semantic_clustering_enabled=false
+AI_DIGEST_llm__provider=ollama
+AI_DIGEST_llm__model=minimax-m2.7:cloud
+
+# Wrong — double underscore after AI_DIGEST breaks parsing
+AI_DIGEST__embedding__semantic_clustering_enabled=false   # ❌ Does NOT work
+```
+
+---
+
 ### RSS Source Debugging & Fallback Chain
 
 When an RSS source appears to "fail" (zero articles, timeout, or circuit breaker trip), diagnose in this order:
