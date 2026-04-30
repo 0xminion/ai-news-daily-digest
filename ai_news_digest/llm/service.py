@@ -257,8 +257,6 @@ def _structured_to_text(data: dict) -> str:
             lines.append(f"{idx}. {headline}")
         if h.get('summary'):
             lines.append(h['summary'])
-        if h.get('source'):
-            lines.append(f"Source: {h['source']}")
         lines.append('')
 
     # Also worth knowing
@@ -278,7 +276,7 @@ def _structured_to_text(data: dict) -> str:
     # Research signals
     research = data.get('research_builder_signals', [])
     if research:
-        lines.append('Research / Builder Signals:')
+        lines.append('Research and Builder Signals:')
         for item in research:
             # Strip brackets from subtype if LLM included them (e.g. "[paper]" → "paper")
             subtype = (item.get('subtype') or '').strip('[]')

@@ -59,7 +59,7 @@ SECTION_MARKERS = {
     'brief_rundown': 'Brief Rundown:',
     'highlights': 'Highlights:',
     'also_worth_knowing': 'Also Worth Knowing:',
-    'research_builder_signals': 'Research / Builder Signals:',
+    'research_builder_signals': 'Research and Builder Signals:',
 }
 
 
@@ -69,7 +69,7 @@ def _normalize_heading_variants(text: str) -> str:
         r'^\s*brief\s+rundown:\s*$': SECTION_MARKERS['brief_rundown'],
         r'^\s*highlights:\s*$': SECTION_MARKERS['highlights'],
         r'^\s*also\s+worth\s+knowing:\s*$': SECTION_MARKERS['also_worth_knowing'],
-        r'^\s*research\s*/\s*builder\s+signals:\s*$': SECTION_MARKERS['research_builder_signals'],
+        r'^\s*research\s+and\s+builder\s+signals:\s*$': SECTION_MARKERS['research_builder_signals'],
     }
     lines = []
     for line in normalized.split('\n'):
@@ -332,7 +332,7 @@ def _format_digest(raw_summary: str, profile_name: str = 'default') -> list[str]
     if also:
         parts.append(f'**Also Worth Knowing**\n\n{also}')
     if research:
-        parts.append(f'**Research / Builder Signals**\n\n{research}')
+        parts.append(f'**Research and Builder Signals**\n\n{research}')
 
     body = '\n\n'.join(part.strip() for part in parts if part.strip())
     if len(body) <= TELEGRAM_MAX_LENGTH:
@@ -520,7 +520,7 @@ def render_weekly_highlights(payload: dict) -> str:
     lines.append('')
 
     if payload.get('research_builder_signals'):
-        lines.append('**Research / Builder Signals**')
+        lines.append('**Research and Builder Signals**')
         for item in payload['research_builder_signals']:
             subtype = _mdv2_escape(item.get('subtype', 'signal'))
             headline = _mdv2_escape(item['headline'])
