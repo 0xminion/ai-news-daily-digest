@@ -36,9 +36,9 @@ if __name__ == "__main__":
         print("AGENT SUMMARIZATION REQUIRED")
         print(f"{'='*60}")
         print(f"Prompt saved to: {exc.prompt_path}")
-        print(f"Please generate the structured JSON digest and save it to:")
+        print("Please generate the structured JSON digest and save it to:")
         print(f"  {exc.response_path}")
-        print(f"\nThen re-run this script.")
+        print("\nThen re-run this script.")
         print(f"{'='*60}\n")
         raise SystemExit(2)
 

@@ -33,7 +33,7 @@ RSS + orthogonal signals + GitHub trending  →  Regex keyword filter  →  Clus
 4. **Rank** — Scores stories by recency, source trust, source breadth, HN technical attention, and topic momentum.
 5. **Trend Watch** — Uses persistent topic memory and archived daily payloads to identify what is heating up or cooling down.
 6. **Summarize** — Sends the ranked digest set to a configurable LLM provider/model. Returns structured JSON that's validated and converted to text. Falls back to raw text if JSON parsing fails.
-7. **Deliver + Save** — Renders destination-specific Telegram output profiles, saves daily artifacts, and preserves room for weekly highlights and follow-builders v2 integration.
+7. **Deliver + Save** — Renders destination-specific Telegram output profiles, saves daily artifacts, and archives weekly highlights.
 
 ### Reliability
 

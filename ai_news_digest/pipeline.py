@@ -56,8 +56,6 @@ def _infer_subtype(article: dict) -> str:
         return "paper"
     if "github" in source or "repo" in title:
         return "repo"
-    if "follow builders" in source:
-        return "builder feed"
     if "docs" in title or "documentation" in title:
         return "product doc"
     return "product / launch"

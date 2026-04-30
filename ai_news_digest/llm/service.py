@@ -474,7 +474,6 @@ def _agent_summarize(
        data/agent_response.json (created by the agent or user).
     """
     import os
-    import time
 
     from ai_news_digest.config.yaml_loader import get_data_dir
 

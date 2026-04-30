@@ -3,12 +3,24 @@
 ## 2026-04-30
 
 ### Changed
+- **Repo structure cleaned**: All entry points and utilities moved from repo root to `scripts/` directory for clarity:
+  - `scripts/daily.py` — daily digest entry point
+  - `scripts/weekly.py` — weekly digest entry point
+  - `scripts/preview.py` — fetch-only preview (no LLM)
+  - `scripts/dry_run.py` — full pipeline dry run
+  - `scripts/generate_samples.py` — sample output generator from fixtures
+  - `main.py` kept as thin backward-compat shim delegating to `scripts.daily`
+- **Deprecated follow-builders integration removed**: Deleted `ai_news_digest/integrations/follow_builders/`, `docs/follow-builders-v2-integration.md`, `docs/plans/`, and stripped all `follow_builders` config/state code.
 - **Semantic clustering disabled by default**: After live benchmarking, `qwen3-embedding:0.6b` on CPU adds ~90s for 32 core articles with zero output difference on typical daily volume. Set `embedding.semantic_clustering_enabled: false` in `config/default.yaml`. Opt-in by setting the env var `AI_DIGEST_embedding__semantic_clustering_enabled=true` or editing config.
 - Embedding HTTP timeout bumped from 120s to 300s to accommodate larger batches when opted-in.
 - Added `AI_DIGEST_SKIP_RESEARCH_EMBEDDING` env var to skip research-article embedding even when semantic clustering is enabled.
 
 ### Fixed
+- Fixed missing blank lines between `Highlights` → `Also Worth Knowing` → `Research / Builder Signals` section headers in Telegram output.
 - Agent-mode weekly summary now returns a validated dict instead of a JSON string, fixing `AttributeError` in weekly agent path.
+- Restored `thinking_prompts` to weekly fallback payload (was computed but discarded).
+- Fixed ruff lint issues: F541 (f-strings without placeholders), F401 (unused `time` import).
+- Moved `import html` to module level in `sources/pages.py`.
 
 ## 2026-04-23
 

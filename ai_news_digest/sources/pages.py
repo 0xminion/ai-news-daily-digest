@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import html
 import re
 from datetime import datetime, timezone
 from urllib.parse import quote, urljoin, urlparse
@@ -41,7 +42,6 @@ def _strip_html_tags(text: str | None) -> str:
     soup = BeautifulSoup(text, 'html.parser')
     text = soup.get_text(separator=' ', strip=True)
     # Also unescape numeric entities (BeautifulSoup handles most but not all)
-    import html
     text = html.unescape(text)
     # Collapse redundant whitespace
     return ' '.join(text.split())

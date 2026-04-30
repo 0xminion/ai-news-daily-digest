@@ -27,8 +27,6 @@ def _signal_subtype(item: dict) -> str:
         return 'paper'
     if 'github' in source or 'repo' in headline or 'repository' in headline:
         return 'repo'
-    if 'follow builders' in source:
-        return 'builder feed'
     if any(token in url for token in ('docs.', '/docs', 'documentation')) or 'docs' in headline:
         return 'product doc'
     return 'product / launch'
@@ -129,7 +127,7 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
         'Where is hype outrunning evidence in {topic}?',
         'What should be monitored daily to catch the next turn in {topic}?',
     ]
-    _ = [
+    thinking_prompts = [
         prompt_templates[idx % len(prompt_templates)].format(topic=item['topic'])
         for idx, item in enumerate(directions[: max(1, WEEKLY_QUESTIONS_COUNT)])
     ]
@@ -159,6 +157,7 @@ def build_weekly_highlights_payload(days: int = 7) -> dict:
         'highlights_of_the_week': main_summaries[:WEEKLY_HIGHLIGHTS_COUNT],
         'trending_directions': directions[:WEEKLY_DIRECTIONS_COUNT],
         'research_focus': focus,
+        'thinking_prompts': thinking_prompts,
         'research_builder_signals': research_summaries[:WEEKLY_RESEARCH_SIGNALS_COUNT],
         'missed_but_emerging': missed_but_emerging,
     }
