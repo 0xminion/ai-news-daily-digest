@@ -283,6 +283,110 @@ Lightweight metrics logged at INFO level: `pipeline_start`, `pipeline_success`/`
 
 ## 12. Operational Notes
 
+### RSS Source Debugging & Fallback Chain
+
+When an RSS source appears to "fail" (zero articles, timeout, or circuit breaker trip), diagnose in this order:
+
+1. **Direct curl test:** `curl -sL -w "HTTP %{http_code}\n" <feed_url> | head -20`
+2. **Feedparser validation:** Parse locally and check `len(feed.entries)`
+3. **Google News RSS proxy:** For major publishers with dead direct feeds, use:
+   ```
+   https://news.google.com/rss/search?q=site:reuters.com+technology&hl=en-US&gl=US&ceid=US:en
+   ```
+   This bypasses bot protection and CDN blocks that kill direct publisher RSS.
+4. **Update `config/feeds/core.yaml`** with the working URL, then clear health state:
+   ```python
+   from ai_news_digest.storage.sqlite_store import _conn
+   with _conn() as c:
+       c.execute("DELETE FROM source_health WHERE source_name = 'Dead Source'")
+       c.commit()
+   ```
+
+**Real-world case (April 2026):**
+- `rss-bridge.org` proxy for Reuters died with HTTP 000 (unreachable host)
+- Direct `reuters.com/technology/` returned HTTP 401 to bots
+- `feeds.reuters.com` DNS did not resolve
+- **Working fix:** Google News RSS search proxy (see above)
+
+---
+
+### Circuit Breaker Death Spiral — Critical Anti-Pattern
+
+**Symptom:** Over multiple days, ALL RSS sources become permanently disabled even though their feeds are healthy. The SQLite `source_health` table shows `consecutive_failures = 3` and `last_success = None` for every source.
+
+**Root cause:** Two interacting bugs in `analysis/health.py`:
+1. `source_check(source_name, success=True, article_count=0)` was treated as a **failure**, incrementing `consecutive_failures`. A source that publishes 1 article/day and misses the AI keyword filter would rack up 3 "failures" and be permanently disabled.
+2. `filter_disabled_sources()` had a **zero-article timeout**: any source with `last_article_count == 0` was blocked for 48h. Once blocked, the next run fetched 0 articles, updating `last_article_count` to 0 again — a **permanent death spiral** that eventually blocked all sources.
+
+**Fix:**
+```python
+# In source_check() — ONLY increment failures on actual exceptions
+if success:
+    rec["consecutive_failures"] = 0  # Zero-article fetch is NOT a failure
+    rec["last_success"] = datetime.now(timezone.utc).isoformat()
+    rec["last_article_count"] = article_count
+else:
+    rec["consecutive_failures"] += 1
+
+# In filter_disabled_sources() — REMOVE the zero-article timeout entirely
+# RSS feeds are lightweight; a 48h ban after one quiet day is unnecessary
+# and creates the death spiral.
+```
+
+**Verification after fix:**
+```python
+from ai_news_digest.analysis.health import filter_disabled_sources
+from ai_news_digest.config import RSS_FEEDS
+active = filter_disabled_sources(RSS_FEEDS)
+print([name for name, _ in active])  # Should list ALL feeds, not empty
+```
+
+---
+
+### Embedding Endpoint Configuration
+
+**Default:** `qwen3-embedding:0.6b` via Ollama on `http://localhost:11434`
+
+**Batching is mandatory for performance.** The legacy `/api/embeddings` endpoint handles one text per request. For 200+ research articles, this is ~25 minutes. The batched `/api/embed` endpoint cuts this to ~5 minutes.
+
+**Config (`config/default.yaml`):**
+```yaml
+embedding:
+  model: qwen3-embedding:0.6b
+  host: "http://localhost:11434"
+  similarity_threshold: 0.85
+  semantic_clustering_enabled: true
+  batch_size: 16
+```
+
+**Implementation:**
+```python
+# Use /api/embed (batched), NOT /api/embeddings (single-request)
+def _fetch_embeddings_batch(texts: list[str]) -> list[np.ndarray | None]:
+    resp = requests.post(
+        f"{host}/api/embed",
+        json={"model": model, "input": texts},
+        timeout=120,
+    )
+    data = resp.json()
+    return [np.array(e, dtype=np.float32) for e in data["embeddings"]]
+```
+
+**Benchmarks (qwen3-embedding:0.6b, local CPU):**
+| Method | 200 articles | Per article |
+|---|---|---|
+| `/api/embeddings` (single) | ~25 min | ~7.5s |
+| `/api/embed` (batch 16) | ~5 min | ~0.5s |
+
+**Verification:**
+```bash
+ollama list  # Must show qwen3-embedding:0.6b
+curl -s http://localhost:11434/api/embed -d '{"model": "qwen3-embedding:0.6b", "input": ["test"]}' | jq '.embeddings | length'
+# → 1
+```
+
+---
+
 ### RSS Ingestion — HTML Source Contamination
 - **Root cause:** VentureBeat, Ars Technica, TechCrunch emit raw HTML in RSS summaries: `<a href="...">`, `<b>`, `&#x27;` entities, merged bullet lines
 - **Fix at parser level:** `sources/rss.py` → `BeautifulSoup.get_text()` + `html.unescape()` before LLM ingest

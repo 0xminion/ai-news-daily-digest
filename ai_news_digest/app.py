@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
 from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
-from ai_news_digest.llm import summarize
+from ai_news_digest.llm import AgentSummarizationRequired, summarize
 from ai_news_digest.output.telegram import _format_digest, send_digest, send_weekly_report
 from ai_news_digest.sources.pipeline import fetch_digest_inputs
 from ai_news_digest.storage.archive import prune_old_reports, save_daily_report, save_weekly_report
@@ -27,10 +27,22 @@ def run_daily(deliver: bool | None = None) -> int:
     validate_config(skip_telegram=not deliver)
     _check_ollama()
     payload = fetch_digest_inputs()
-    summary = summarize(
-        payload['main_articles'],
-        research_articles=payload['research_articles'],
-    )
+    try:
+        summary = summarize(
+            payload['main_articles'],
+            research_articles=payload['research_articles'],
+        )
+    except AgentSummarizationRequired as exc:
+        logger.info('Agent summarization required for daily digest')
+        print(f"\n{'='*60}")
+        print('AGENT SUMMARIZATION REQUIRED')
+        print(f"{'='*60}")
+        print(f'Prompt saved to: {exc.prompt_path}')
+        print(f'Please generate the structured JSON digest and save it to:')
+        print(f'  {exc.response_path}')
+        print(f"\nThen re-run: python3 main.py{' --telegram' if deliver else ''}")
+        print(f"{'='*60}\n")
+        return 2
     from ai_news_digest.analysis.entities import extract_and_record_entities
     prune_old_reports()
     save_daily_report(
@@ -142,7 +154,19 @@ def run_weekly(deliver: bool | None = None) -> int:
     if deliver is None:
         deliver = OUTPUT_MODE != "stdout"
     validate_config(skip_telegram=not deliver)
-    payload, text = build_weekly_sample()
+    try:
+        payload, text = build_weekly_sample()
+    except AgentSummarizationRequired as exc:
+        logger.info('Agent summarization required for weekly digest')
+        print(f"\n{'='*60}")
+        print('AGENT SUMMARIZATION REQUIRED')
+        print(f"{'='*60}")
+        print(f'Prompt saved to: {exc.prompt_path}')
+        print(f'Please generate the structured JSON digest and save it to:')
+        print(f'  {exc.response_path}')
+        print(f"\nThen re-run: python3 weekly.py{' --telegram' if deliver else ''}")
+        print(f"{'='*60}\n")
+        return 2
     save_weekly_report(payload, text)
     if deliver:
         ok = send_weekly_report(text, destinations=get_telegram_destinations())

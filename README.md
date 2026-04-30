@@ -54,9 +54,8 @@ The LLM returns structured JSON which is validated, then converted to the text f
 ### Prerequisites
 
 - Python 3.11+
-- [Ollama](https://ollama.com) installed and running (or another LLM provider)
-- An LLM with **at least 200k context length** (`kimi-k2.6:cloud`, Claude Sonnet, or another 200k+ model)
-- A Telegram bot (create one via [@BotFather](https://t.me/botfather))
+- An AI agent (Hermes, Claude Code, OpenCode, etc.) — the agent itself generates the summary, no external LLM API needed
+- A Telegram bot (create one via [@BotFather](https://t.me/botfather)) — *only if* you want Telegram delivery
 
 ### Setup
 
@@ -70,44 +69,47 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Pull an Ollama model (default fallback)
-ollama pull minimax-m2.7:cloud    # recommended — fast, good quality
-# or: ollama pull gemma4:31b-cloud
-
 # Configure
 cp .env.example .env
 chmod 600 .env
-# Edit .env with your TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+# Edit .env with your TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID if using Telegram
 ```
 
 ### Run
 
+**Agent-native mode (default) — no API keys, no Ollama:**
+
 ```bash
-# Default — fetches, clusters, ranks, summarizes, prints to stdout (no Telegram setup needed)
+# Step 1: Fetch articles and build the prompt
 python main.py
+# → The script prints "AGENT SUMMARIZATION REQUIRED" and saves the prompt to data/agent_prompt.json
 
-# Deliver to Telegram (requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
-python main.py --telegram
+# Step 2: Your agent reads the prompt and generates the structured JSON digest,
+#    then saves it to data/agent_response.json
 
-# Same for weekly
-python weekly.py          # stdout
-python weekly.py --telegram
+# Step 3: Re-run to format and deliver
+python main.py
 ```
 
-### Hermes Agent Auto-Detection (Recommended)
+When running inside a Hermes session, the agent detects the prompt automatically,
+generates the summary, writes the response file, and re-runs the pipeline.
 
-If you run this inside a Hermes agent session, the digest **automatically uses the same model and provider** as your active agent — no manual `.env` configuration needed for the LLM. It reads `~/.hermes/config.yaml` and resolves credentials at runtime.
-
-Supported Hermes providers:
-- **Nous Research** → maps to OpenAI-compatible API
-- **OpenRouter** → uses pooled credentials
-- **Anthropic** → uses pooled credentials
-- **Ollama / custom** → falls back to local Ollama
-
-To override auto-detection, set explicit env vars:
+**With an external LLM (optional):**
 
 ```bash
-LLM_PROVIDER=anthropic LLM_MODEL=claude-3-5-sonnet-20240620 python main.py
+# Ollama (local)
+ollama pull minimax-m2.7:cloud
+LLM_PROVIDER=ollama LLM_MODEL=minimax-m2.7:cloud python main.py
+
+# OpenRouter
+LLM_PROVIDER=openrouter LLM_MODEL=moonshotai/kimi-k2.6 OPENROUTER_API_KEY=*** python main.py
+```
+
+**Telegram delivery:**
+
+```bash
+python main.py --telegram
+python weekly.py --telegram
 ```
 
 ### Schedule with cron
@@ -290,20 +292,27 @@ python -m pytest -q
 
 The summarizer is model-agnostic. All LLM calls go through `summarize(...) -> str` in `ai_news_digest/llm/service.py`. Supports:
 
-- **Ollama** — local, free, default fallback
+- **Agent (default)** — the running agent generates the summary; no API keys, no local models
+- **Ollama** — local, free
 - **OpenAI** — GPT-4, GPT-4o, etc.
 - **OpenRouter** — access to 100+ models via single API
 - **Anthropic** — Claude models
-- **Hermes auto-detect** — follows your active agent model automatically
+- **Hermes auto-detect** — follows your active agent model automatically (when using external LLM mode)
 
-Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`, or let Hermes auto-detect handle it. The structured JSON output format is requested from providers that support it. Falls back to raw text if JSON parsing fails. Reasoning models (e.g. kimi-k2.6) are handled by reading the `reasoning` field when `content` is empty.
+Change `LLM_PROVIDER` and `LLM_MODEL` in `.env`, or set `AI_DIGEST__llm__provider=ollama`.
+The structured JSON output format is requested from providers that support it. Falls back to raw text if JSON parsing fails. Reasoning models (e.g. kimi-k2.6) are handled by reading the `reasoning` field when `content` is empty.
 
-**Project requirement:** the digest rejects models inferred below 200k context length. For custom 200k+ models that are not in the built-in model map, set `LLM_CONTEXT_LIMIT` explicitly.
+**Agent mode automation:** For fully hands-off cron jobs, pre-generate the summary JSON and pass it via the `AGENT_DIGEST_JSON` environment variable:
+
+```bash
+AGENT_DIGEST_JSON='{"brief_rundown":"...","highlights":[...]}' python main.py
+```
 
 ## Error Handling
 
 | Scenario | Behavior |
 |----------|----------|
+| Agent summarization required (default) | Saves prompt to `data/agent_prompt.json`, prints instructions, exits with code 2 |
 | RSS feed down | Retries 2x with backoff, then skips that feed |
 | HN API timeout | Retries 2x with backoff, then skips HN for that query |
 | Page fetch blocked (Cloudflare) | Falls back to cloudscraper, then archive.org, then archive.ph |

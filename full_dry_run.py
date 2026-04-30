@@ -18,7 +18,7 @@ def _setup():
 if __name__ == "__main__":
     _setup()
     from ai_news_digest.config import validate_config
-    from ai_news_digest.llm import summarize
+    from ai_news_digest.llm import AgentSummarizationRequired, summarize
     from ai_news_digest.output.telegram import _format_digest
     from ai_news_digest.sources.pipeline import fetch_digest_inputs
 
@@ -26,10 +26,21 @@ if __name__ == "__main__":
 
     payload = fetch_digest_inputs()
 
-    summary = summarize(
-        payload['main_articles'],
-        research_articles=payload['research_articles'],
-    )
+    try:
+        summary = summarize(
+            payload['main_articles'],
+            research_articles=payload['research_articles'],
+        )
+    except AgentSummarizationRequired as exc:
+        print(f"\n{'='*60}")
+        print("AGENT SUMMARIZATION REQUIRED")
+        print(f"{'='*60}")
+        print(f"Prompt saved to: {exc.prompt_path}")
+        print(f"Please generate the structured JSON digest and save it to:")
+        print(f"  {exc.response_path}")
+        print(f"\nThen re-run this script.")
+        print(f"{'='*60}\n")
+        raise SystemExit(2)
 
     messages = _format_digest(summary)
 

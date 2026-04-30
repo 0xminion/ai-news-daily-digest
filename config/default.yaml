@@ -4,8 +4,8 @@
 environment: dev
 
 llm:
-  provider: ollama
-  model: minimax-m2.7:cloud
+  provider: agent
+  model: agent
   api_base: ""
   timeout: 120
   max_tokens: 1800

@@ -444,6 +444,126 @@ def _anthropic(prompt: str, settings: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Agent-native summarization — no external LLM API required
+# ---------------------------------------------------------------------------
+
+class AgentSummarizationRequired(Exception):
+    """Raised when the agent provider is active and a human/agent must generate the summary."""
+
+    def __init__(self, prompt_path: str, response_path: str, prompt_text: str = '') -> None:
+        self.prompt_path = prompt_path
+        self.response_path = response_path
+        self.prompt_text = prompt_text
+        super().__init__(
+            f"Agent summarization required. Prompt saved to {prompt_path}. "
+            f"Generate the structured JSON digest and save it to {response_path}, then re-run."
+        )
+
+
+def _agent_summarize(
+    prompt: str,
+    main_articles: list[dict],
+    research_articles: list[dict],
+    weekly: bool = False,
+) -> str:
+    """Agent-native mode: write prompt to disk, check for agent-written response.
+
+    Two automation paths are supported:
+    1. AGENT_DIGEST_JSON env var — pass the raw JSON string directly.
+    2. File handshake — write prompt to data/agent_prompt.json, wait for
+       data/agent_response.json (created by the agent or user).
+    """
+    import os
+    import time
+
+    from ai_news_digest.config.yaml_loader import get_data_dir
+
+    data_dir = get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    prompt_path = data_dir / 'agent_prompt.json'
+    response_path = data_dir / 'agent_response.json'
+
+    # Path 1: env var (useful for wrappers and cron jobs)
+    env_json = os.environ.get('AGENT_DIGEST_JSON')
+    if env_json:
+        try:
+            parsed = _extract_json(env_json)
+            if weekly:
+                validated = _validate_weekly(parsed)
+                return json.dumps(validated)
+            validated = _validate_digest(parsed)
+            return _structured_to_text(validated)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning('AGENT_DIGEST_JSON invalid (%s), falling back to file mode', exc)
+
+    # Path 2: file handshake
+    # Save structured prompt so the agent has everything it needs
+    prompt_data = {
+        'mode': 'weekly' if weekly else 'daily',
+        'instruction': (
+            'You are an AI news curator. Generate a structured digest JSON '
+            'matching the schema below. Do not include HTML. Use bare URLs or '
+            'Markdown [text](url) links. Return ONLY valid JSON.'
+        ),
+        'prompt_text': prompt,
+        'main_articles': [
+            {'title': a.get('title', ''), 'url': a.get('url', ''), 'source': a.get('source', '')}
+            for a in main_articles
+        ],
+        'research_articles': [
+            {
+                'title': a.get('title', ''),
+                'url': a.get('url', ''),
+                'source': a.get('source', ''),
+                'subtype': a.get('subtype', ''),
+            }
+            for a in research_articles
+        ],
+        'schema': {
+            'brief_rundown': '2-3 sentence overview',
+            'highlights': [
+                {
+                    'headline': '...',
+                    'summary': '1-2 sentences',
+                    'source': 'Publication Name',
+                    'url': 'https://...',
+                    'why_it_matters': '1 sentence',
+                }
+            ],
+            'also_worth_knowing': [
+                {'headline': '...', 'source': '...', 'url': '...'}
+            ],
+            'research_builder_signals': [
+                {
+                    'headline': '...',
+                    'source': '...',
+                    'url': '...',
+                    'subtype': 'paper | repo | builder feed | product / launch',
+                }
+            ],
+        },
+    }
+    prompt_path.write_text(json.dumps(prompt_data, indent=2, ensure_ascii=False), encoding='utf-8')
+
+    # Check if agent already wrote response
+    if response_path.exists():
+        try:
+            raw = response_path.read_text(encoding='utf-8')
+            parsed = _extract_json(raw)
+            if weekly:
+                validated = _validate_weekly(parsed)
+                response_path.unlink()
+                return json.dumps(validated)
+            validated = _validate_digest(parsed)
+            response_path.unlink()
+            return _structured_to_text(validated)
+        except Exception as exc:
+            logger.warning('Agent response file invalid (%s), waiting for new response', exc)
+
+    raise AgentSummarizationRequired(str(prompt_path), str(response_path), prompt)
+
+
+# ---------------------------------------------------------------------------
 # Main summarize function
 # ---------------------------------------------------------------------------
 
@@ -452,6 +572,11 @@ def summarize(main_articles: list[dict], research_articles: list[dict] | None = 
         return _quiet_day_message()
     research_articles = research_articles or []
     settings = get_llm_settings()
+
+    if settings['provider'] == 'agent':
+        prompt = _build_prompt(main_articles, research_articles, max_tokens=None)
+        return _agent_summarize(prompt, main_articles, research_articles)
+
     context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
     # Reserve tokens for response generation + prompt overhead
     max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
@@ -530,6 +655,8 @@ def summarize_weekly(archives: list[dict], window_days: int = 7, use_llm: bool =
         raw = _openai_compatible(prompt, settings)
     elif settings['provider'] == 'anthropic':
         raw = _anthropic(prompt, settings)
+    elif settings['provider'] == 'agent':
+        return _agent_summarize(prompt, [], [], weekly=True)
     else:
         raise ValueError(f"Unsupported LLM provider '{settings['provider']}'")
     try:

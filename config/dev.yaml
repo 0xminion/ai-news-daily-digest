@@ -2,8 +2,8 @@
 environment: dev
 
 llm:
-  model: minimax-m2.7:cloud
-  provider: ollama
+  model: agent
+  provider: agent
 
 delivery:
   output_mode: stdout
