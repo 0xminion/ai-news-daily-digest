@@ -20,7 +20,7 @@ if __name__ == "__main__":
     from ai_news_digest.config import validate_config
     from ai_news_digest.llm import AgentSummarizationRequired, summarize
     from ai_news_digest.output.telegram import _format_digest
-    from ai_news_digest.sources.pipeline import fetch_digest_inputs
+    from ai_news_digest.pipeline import fetch_digest_inputs
 
     validate_config()
 

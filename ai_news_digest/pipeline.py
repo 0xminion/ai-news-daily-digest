@@ -15,11 +15,11 @@ from ai_news_digest.storage.archive import exclude_cross_day_duplicates
 from ai_news_digest.storage.sqlite_store import load_topic_memory, save_topic_memory, start_run, end_run
 from ai_news_digest.observability.metrics import set_run_id, fetch_latency, articles_fetched, fetch_failed, cluster_count, dedup_hit_rate, pipeline_start, pipeline_success
 from ai_news_digest.sources.common import _utc_today
-from .github_trending import fetch_github_trending
-from .hackernews import enrich_articles_with_hn
-from .orthogonal import fetch_orthogonal_signal_articles
-from .pages import fetch_page_articles
-from .rss import fetch_rss_articles
+from ai_news_digest.sources.github_trending import fetch_github_trending
+from ai_news_digest.sources.hackernews import enrich_articles_with_hn
+from ai_news_digest.sources.orthogonal import fetch_orthogonal_signal_articles
+from ai_news_digest.sources.pages import fetch_page_articles
+from ai_news_digest.sources.rss import fetch_rss_articles
 
 def _apply_semantic_clustering(articles: list[dict]) -> list[dict]:
     if not cfg_bool("embedding.semantic_clustering_enabled"):

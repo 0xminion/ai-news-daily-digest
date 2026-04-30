@@ -1,7 +1,3 @@
-from .pipeline import (
-    fetch_digest_inputs as fetch_digest_inputs,
-    fetch_articles as fetch_articles,
-)
 from .pages import fetch_html_with_fallback as fetch_html_with_fallback
 from .rss import fetch_rss_articles as fetch_rss_articles
 from .hackernews import enrich_articles_with_hn as enrich_articles_with_hn

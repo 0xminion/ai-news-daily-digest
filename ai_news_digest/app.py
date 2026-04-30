@@ -1,12 +1,37 @@
 from __future__ import annotations
 
-from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
+from ai_news_digest.analysis.weekly import build_weekly_highlights_payload
 from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
 from ai_news_digest.llm import AgentSummarizationRequired, summarize
-from ai_news_digest.output.telegram import _format_digest, send_digest, send_weekly_report
-from ai_news_digest.sources.pipeline import fetch_digest_inputs
+from ai_news_digest.output.telegram import _format_digest, render_weekly_highlights, send_digest, send_weekly_report
+from ai_news_digest.pipeline import fetch_digest_inputs
 from ai_news_digest.storage.archive import prune_old_reports, save_daily_report, save_weekly_report
 
+
+from ai_news_digest.storage.sqlite_store import migrate_from_json
+from ai_news_digest.config import STATE_DIR
+
+# Lazy migration on first import — only once per process
+import threading
+_migration_done = False
+_migration_lock = threading.Lock()
+
+
+def _lazy_migrate():
+    global _migration_done
+    if _migration_done:
+        return
+    with _migration_lock:
+        if _migration_done:
+            return
+        try:
+            migrate_from_json(STATE_DIR)
+        except Exception:
+            pass
+        _migration_done = True
+
+
+_lazy_migrate()
 
 def _check_ollama() -> None:
     llm = get_llm_settings()

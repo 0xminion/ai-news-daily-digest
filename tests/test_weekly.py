@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
-from ai_news_digest.analysis.weekly import build_weekly_highlights_payload, render_weekly_highlights
+from ai_news_digest.analysis.weekly import build_weekly_highlights_payload
+from ai_news_digest.output.telegram import render_weekly_highlights
 
 
 def test_render_weekly_highlights_includes_confidence_and_subtypes():

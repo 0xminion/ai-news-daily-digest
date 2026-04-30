@@ -11,3 +11,4 @@ generated_samples/
 send_to_*.py
 *.log
 .DS_Store
+.sentrux/

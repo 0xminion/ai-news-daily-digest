@@ -80,35 +80,3 @@ from .yaml_loader import (
     cfg_str as cfg_str,
     ensure_directories as ensure_directories,
 )
-
-# New public API: run_id-based state
-from ai_news_digest.storage.sqlite_store import (
-    start_run as start_run,
-    end_run as end_run,
-    load_topic_memory as load_topic_memory,
-    save_topic_memory as save_topic_memory,
-    load_follow_builders_state as load_follow_builders_state,
-    save_follow_builders_state as save_follow_builders_state,
-    migrate_from_json as migrate_from_json,
-)
-# Lazy migration on first import — only once per process
-import threading
-_migration_done = False
-_migration_lock = threading.Lock()
-
-
-def _lazy_migrate():
-    global _migration_done
-    if _migration_done:
-        return
-    with _migration_lock:
-        if _migration_done:
-            return
-        try:
-            migrate_from_json(STATE_DIR)
-        except Exception:
-            pass
-        _migration_done = True
-
-
-_lazy_migrate()
