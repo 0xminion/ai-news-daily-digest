@@ -413,6 +413,47 @@ print([name for name, _ in active])  # Should list ALL feeds, not empty
 
 ---
 
+### Embedding Benchmarks & Defaults — Live Findings (April 2026)
+
+After running the full pipeline with semantic clustering enabled, disabled, and core-only, the data is unambiguous:
+
+| Variant | Articles Embedded | Wall Time | Output Diff vs Off |
+|---------|-------------------|-----------|-------------------|
+| Full (core + research) | 208 (32 + 176) | ~660s | Zero (research timed out, fell back to singletons) |
+| Core-only | 32 | ~97s | Zero |
+| **Off (default)** | **0** | **~9s** | **Zero** |
+
+**Key finding:** At typical daily volume (30–40 diverse core articles), no pair of articles had cosine similarity ≥ 0.85. Every article stayed as its own singleton cluster. The embedding step added ~90s of pure CPU burn with **zero quality benefit**.
+
+**Decision:** `semantic_clustering_enabled: false` is now the default in `config/default.yaml`. It is opt-in only.
+
+**When to enable:**
+- Breaking news day with 5+ sources covering the same story (e.g., "OpenAI IPO" from TechCrunch, The Verge, Ars, Reuters, Wired)
+- Feed volume consistently > 80 core articles/day
+- You have a GPU-backed embedding model (not `qwen3-embedding:0.6b` on CPU)
+
+**Opt-in methods:**
+```bash
+# Env var (one-off)
+AI_DIGEST_embedding__semantic_clustering_enabled=true python3 main.py
+
+# Config (persistent)
+# In config/default.yaml:
+embedding:
+  semantic_clustering_enabled: true
+```
+
+**Skip research embedding even when enabled:**
+```bash
+# Only embed core articles (32), skip research (176)
+AI_DIGEST_embedding__semantic_clustering_enabled=true AI_DIGEST_SKIP_RESEARCH_EMBEDDING=true python3 main.py
+```
+
+**Timeout bump for opted-in runs:**
+The embedding HTTP timeout was bumped from 120s to 300s because `qwen3-embedding:0.6b` on CPU can take >2 minutes per batch when loaded. If you see `Read timed out` in logs, either reduce `embedding.batch_size` or switch to a faster embedding model.
+
+---
+
 ### Embedding Endpoint Configuration
 
 **Default:** `qwen3-embedding:0.6b` via Ollama on `http://localhost:11434`
