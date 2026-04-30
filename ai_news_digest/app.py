@@ -3,7 +3,7 @@ from __future__ import annotations
 from ai_news_digest.analysis.entities import extract_and_record_entities
 from ai_news_digest.analysis.weekly import build_weekly_highlights_payload
 from ai_news_digest.config import OUTPUT_MODE, RESEARCH_SIGNALS_COUNT, USER_AGENT, get_llm_settings, get_telegram_destinations, logger, validate_config
-from ai_news_digest.llm import AgentSummarizationRequired, summarize
+from ai_news_digest.llm import AgentSummarizationRequired, summarize_with_entities
 from ai_news_digest.output.telegram import _format_digest, render_weekly_highlights, send_digest, send_weekly_report
 from ai_news_digest.pipeline import fetch_digest_inputs
 from ai_news_digest.storage.unified import storage as _storage
@@ -49,7 +49,7 @@ def run_daily(deliver: bool | None = None) -> int:
     _check_ollama()
     payload = fetch_digest_inputs()
     try:
-        summary = summarize(
+        result = summarize_with_entities(
             payload['main_articles'],
             research_articles=payload['research_articles'],
         )
@@ -64,7 +64,8 @@ def run_daily(deliver: bool | None = None) -> int:
         print(f"\nThen re-run: python3 scripts/daily.py{' --telegram' if deliver else ''}")
         print(f"{'='*60}\n")
         return 2
-    extract_and_record_entities(payload['run_id'], summary)
+    extract_and_record_entities(payload['run_id'], result.text, pre_extracted=result.entities)
+    summary = result.text
     _storage.prune_old_reports()
     _storage.save_daily_report(
         summary,

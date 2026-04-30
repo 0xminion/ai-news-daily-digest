@@ -26,13 +26,12 @@ Brief Rundown:
 
 Highlights:
 1. [Headline](url)
-<summary body>
-Source: Publication Name
+<summary body — Source Name>
 
 Also Worth Knowing:
 - [Headline](url) (Publication Name)
 
-Research / Builder Signals:
+Research and Builder Signals:
 - [paper] [Headline](url) (Publication Name)
 - [repo] [Headline](url) (Publication Name)
 ```
@@ -42,7 +41,7 @@ Research / Builder Signals:
 | Brief Rundown | 1 | 2–3 sentences |
 | Highlights | 3–5 | headline + summary + source |
 | Also Worth Knowing | up to 10 | headline + source (NO body) |
-| Research / Builder Signals | up to 5 | subtype + headline + source |
+| Research and Builder Signals | up to 5 | subtype + headline + source |
 
 ---
 
@@ -54,7 +53,7 @@ ALL headlines are links. Period.
 |---------|---------|
 | Highlights | `1. [Headline text](https://example.com)` |
 | Also Worth Knowing | `- [Headline text](https://example.com) (Source)` |
-| Research / Builder Signals | `- [subtype] [Headline text](https://example.com) (Source)` |
+| Research and Builder Signals | `- [subtype] [Headline text](https://example.com) (Source)` |
 
 ### CRITICAL: Also Worth Knowing — full headline, never truncate
 
@@ -83,9 +82,16 @@ Do NOT escape the period after the number. The formatter will normalize `N\.` to
 
 ```
 1. [Microsoft and OpenAI gut their exclusive deal, freeing OpenAI to sell on AWS and Google Cloud](https://...)
-The companies announced a sweeping overhaul...
-Source: VentureBeat
+The companies announced a sweeping overhaul... — VentureBeat
 ```
+
+### Universal formatting constraints (all models must obey)
+
+| Constraint | Rule |
+|---|---|
+| **No emoji in headlines** | NEVER prefix highlights with emoji (e.g. `🏗️`, `💰`). Emojis belong in thread intros or section headers only if the platform supports them. |
+| **No `/` in section titles** | Use `Research and Builder Signals` not `Research / Builder Signals`. The slash character breaks some parsers and looks unprofessional in plain-text outputs. |
+| **Source inline with em-dash** | In highlights, append the source to the summary with an em-dash: `Summary text — Source Name`. Do NOT use a separate `Source:` line. |
 
 ---
 
@@ -212,17 +218,21 @@ You are an AI news curator. ... produce a daily digest.
 Rules:
 - Never use HTML tags; use plain text only (URLs in Markdown [text](url) format).
 - Hacker News is enrichment-only. Do not list it as a standalone source.
-- Research / Builder Signals must be its own separate section.
-- Keep Research / Builder Signals to at most 5 items.
+- Research and Builder Signals must be its own separate section.
+- Keep Research and Builder Signals to at most 5 items.
 - If a signal has a subtype, preserve it like [paper], [repo], etc.
 - Numbered lists must use `N.` (e.g., `1.`, `2.`). **Never escape the period:** do NOT output `N\.` in Highlights.
+- NEVER put emoji in headlines or section titles.
+- NEVER use the `/` character in section titles. Use "and" instead.
+- In highlights, put the source inline at the end of the summary with an em-dash: "Summary text — Source Name". Do NOT use a separate "Source:" line.
 
 You MUST respond with valid JSON matching this exact schema:
 {
   "brief_rundown": "...",
   "highlights": [{"headline": "...", "summary": "...", "source": "...", "url": "...", "why_it_matters": "..."}],
   "also_worth_knowing": [{"headline": "...", "source": "...", "url": "..."}],
-  "research_builder_signals": [{"headline": "...", "source": "...", "url": "...", "subtype": "..."}]
+  "research_builder_signals": [{"headline": "...", "source": "...", "url": "...", "subtype": "..."}],
+  "entities": [{"name": "...", "type": "..."}]
 }
 ```
 
@@ -269,10 +279,84 @@ Before claiming formatting is correct:
 | Section headings | Normalized to title case before parsing |
 | Line boundaries | Preserved in `_strip_html` |
 | **Section header spacing** | **`\n\n`** between `Highlights` / `Also Worth Knowing` / `Research` in `_format_digest` |
+| **No emoji in headlines** | Headlines are plain text — emoji only in thread intros if needed |
+| **No `/` in titles** | Use `and` instead of `/` in all section and article titles |
+| **Source inline** | `Summary text — Source Name` (not separate `Source:` line) |
 
 ---
 
-## 11. New Architecture (v2)
+## 11. Twitter and X Thread Format
+
+Twitter does not render Markdown links in tweets — URLs are auto-linked. The thread format is optimized for readability in plain text.
+
+### Thread Structure
+
+```
+🧵 AI Daily Digest — April 30, 2026
+
+The AI landscape today is dominated by...
+
+1/ SoftBank is creating a robotics company that builds data centers
+SoftBank is reportedly forming a new entity called Roze... — TechCrunch
+https://techcrunch.com/...
+
+2/ Anthropic could raise a new $50B round at a valuation of $900B
+Anthropic is reportedly in talks to raise $50 billion... — TechCrunch
+https://techcrunch.com/...
+```
+
+### Twitter Formatting Rules
+
+| Rule | Implementation |
+|---|---|
+| **No bold** | Twitter has no bold text. Do NOT use `**text**` or HTML `<b>`. |
+| **No markdown links in body** | URLs are pasted as raw links on their own line. Twitter auto-links them. |
+| **No emoji on individual tweet titles** | Keep headlines clean. Emojis only in the thread intro tweet if desired. |
+| **Source inline with em-dash** | `Summary text — Source Name` |
+| **Numbered as `N/` or `N.`** | Thread tweets use `1/`, `2/` etc. Numbered list items use `1.`, `2.` |
+| **Max 280 chars per tweet** | The renderer chunks automatically; individual items should stay under limit. |
+
+---
+
+## 12. Agent-Native Entity Extraction
+
+When `llm.provider` is set to `"agent"`, the agent that generates the digest also extracts entities. No external LLM API call is needed for entity extraction.
+
+### How It Works
+
+1. The agent prompt schema includes an `entities` array:
+```json
+{
+  "entities": [
+    {"name": "OpenAI", "type": "org"},
+    {"name": "Sam Altman", "type": "person"}
+  ]
+}
+```
+
+2. The agent populates this array while writing the digest.
+
+3. `summarize_with_entities()` returns a `DigestResult` containing both `.text` and `.entities`.
+
+4. `app.py` passes `pre_extracted=result.entities` to `extract_and_record_entities()`, which skips the LLM call and records directly to SQLite.
+
+### Valid Entity Types
+
+| Type | Examples |
+|---|---|
+| `person` | Sam Altman, Demis Hassabis |
+| `org` | OpenAI, Anthropic, Google |
+| `coin` | Bitcoin, Ethereum, Solana |
+| `project` | GPT-5, Claude, Gemini |
+| `topic` | RAG, agentic AI, multimodal |
+
+### Fallback
+
+If the agent does not provide entities (empty array or missing key), the pipeline falls back to LLM-based extraction for non-agent providers. Agent mode never makes an extra LLM call for entities.
+
+---
+
+## 13. New Architecture (v2)
 
 ### YAML-First Configuration
 All settings live in `config/default.yaml` (mandatory). Environment variables override via `AI_DIGEST__section__key=value`.
@@ -287,6 +371,8 @@ Per-source health is tracked in SQLite (`source_health` table). Sources with con
 
 ### Entity Extraction
 LLM extracts people, organizations, coins, and projects from the daily digest. Results are persisted to SQLite and surfaced in weekly reports.
+
+**Agent-native mode:** When `llm.provider: agent`, the agent that writes the digest also populates the `entities` array in the structured JSON. No external LLM call is made for entity extraction — the pipeline reads pre-extracted entities directly from the agent response. See section 12 for details.
 
 ### Observability Metrics
 Lightweight metrics logged at INFO level: `pipeline_start`, `pipeline_success`/`failure` (with latency), `fetch_latency` (per source), `articles_fetched`, `fetch_failed`, `dedup_hit_rate`.
@@ -523,3 +609,92 @@ curl -s http://localhost:11434/api/embed -d '{"model": "qwen3-embedding:0.6b", "
 ### Debugging Format Failures
 - When `TestFormatDigest` assertions fail, run `_format_digest(test_input)` directly and inspect raw output.
 - If sections are missing, trace upstream: `_strip_html` → `_normalize_heading_variants` → `_parse_summary_sections` before suspecting the formatter.
+
+---
+
+## 13. Testing Pitfalls — Lazy SQLite Schema Initialization
+
+If a module creates its own table **lazily** (e.g. `analysis/health.py` calls `_ensure_source_health_table()` on first use rather than in the global `_init_schema()`), test fixtures that only call `_ensure_schema()` will hit `sqlite3.OperationalError: no such table`.
+
+**Symptom (CI failure after commit):**
+```
+ERROR tests/test_circuit_breaker.py::... - sqlite3.OperationalError: no such table: source_health
+```
+
+**Root cause:**
+```python
+# ❌ WRONG — main schema does NOT create source_health
+from ai_news_digest.storage.sqlite_store import _conn, _ensure_schema
+_ensure_schema()          # creates runs, topic_memory, entities, daily_reports...
+                          # does NOT create source_health
+
+# ✅ CORRECT — call the module's own lazy initializer
+from ai_news_digest.analysis.health import _ensure_source_health_table
+_ensure_source_health_table()
+```
+
+**Rule of thumb:** When writing test fixtures for SQLite-backed modules, check whether each table is created by the global schema init or by a module-level lazy function. Match the fixture to the actual creator.
+
+---
+
+## 14. API Design — Avoid Polymorphic Return Types in Shared Core Functions
+
+`_agent_summarize()` originally returned `str` for daily mode and `dict` for weekly mode. This forced every caller to know which mode was active and handle the type differently — a classic footgun.
+
+**Fix:** Always return the structured `dict`. Let the daily caller convert to text via `_structured_to_text()`, while the weekly caller uses the dict directly.
+
+```python
+# Before — polymorphic, callers must branch
+result = _agent_summarize(..., weekly=is_weekly)
+if is_weekly:
+    payload = result        # dict
+else:
+    text = result           # str
+
+# After — uniform return, caller decides conversion
+result = _agent_summarize(..., weekly=is_weekly)   # always dict
+if is_weekly:
+    payload = result
+else:
+    text = _structured_to_text(result)
+```
+
+---
+
+## 15. Architecture Patterns Introduced in v2.1 Refactor
+
+### SourceAdapter Protocol
+When the pipeline calls 4+ fetch functions with different signatures (RSS feeds list, page sources list, no args, `top_n` param), introduce a protocol:
+
+```python
+class SourceAdapter(Protocol):
+    name: str
+    def fetch(self) -> list[dict]: ...
+```
+
+Wrap each legacy fetcher in an adapter class (`RSSSourceAdapter`, `PageSourceAdapter`, etc.). The pipeline iterates uniformly:
+
+```python
+for adapter in adapters:
+    articles = adapter.fetch()
+    if adapter.name == "github_trending":
+        research_articles.extend(articles)
+    ...
+```
+
+**Benefit:** Eliminates duplicated error handling, circuit breaker logic, and metrics calls scattered across the pipeline.
+
+### UnifiedStorage Facade
+When storage is split across file-based JSON archives, SQLite for state/FTS, and in-memory topic history, create a single facade:
+
+```python
+class UnifiedStorage:
+    def start_run(self) -> str: ...
+    def save_daily_report(self, summary, articles, ...) -> dict[str, str]: ...
+    def exclude_cross_day_duplicates(self, articles, days) -> tuple[list[dict], int]: ...
+    def migrate(self) -> None: ...
+```
+
+Callers import one object (`storage = UnifiedStorage()`) and never need to know which backend handles which concern.
+
+**Benefit:** Removes 3 separate import sites (`archive`, `sqlite_store`, `topic_memory`) and makes testing easier — the entire storage layer can be mocked at one boundary.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -15,6 +16,13 @@ INJECTION = re.compile(
 )
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / 'prompts'
+
+@dataclass
+class DigestResult:
+    """Structured result from daily summarization, carrying both text and metadata."""
+
+    text: str
+    entities: list[dict] | None = None
 
 # Expected top-level keys in structured output
 REQUIRED_DIGEST_KEYS = {'brief_rundown', 'highlights'}
@@ -221,7 +229,7 @@ def _validate_digest(data: dict) -> dict:
         data['highlights'] = [{'headline': data['highlights'], 'summary': '', 'source': '', 'url': ''}]
 
     # Ensure lists for array fields
-    for key in ['also_worth_knowing', 'research_builder_signals']:
+    for key in ['also_worth_knowing', 'research_builder_signals', 'entities']:
         if key not in data:
             data[key] = []
         elif not isinstance(data[key], list):
@@ -526,7 +534,7 @@ def _agent_summarize(
             'highlights': [
                 {
                     'headline': '...',
-                    'summary': '1-2 sentences',
+                    'summary': '1-2 sentences. Ends with — Source Name',
                     'source': 'Publication Name',
                     'url': 'https://...',
                     'why_it_matters': '1 sentence',
@@ -542,6 +550,10 @@ def _agent_summarize(
                     'url': '...',
                     'subtype': 'paper | repo | builder feed | product / launch',
                 }
+            ],
+            'entities': [
+                {'name': 'OpenAI', 'type': 'org'},
+                {'name': 'Sam Altman', 'type': 'person'},
             ],
         },
     }
@@ -568,19 +580,24 @@ def _agent_summarize(
 # Main summarize function
 # ---------------------------------------------------------------------------
 
-def summarize(main_articles: list[dict], research_articles: list[dict] | None = None) -> str:
+def summarize_with_entities(main_articles: list[dict], research_articles: list[dict] | None = None) -> DigestResult:
+    """Generate daily digest and return both text and extracted entities.
+
+    In agent-native mode, entities are extracted by the agent as part of the
+    structured JSON response — no external LLM call is needed.
+    """
     if not main_articles and not research_articles:
-        return _quiet_day_message()
+        return DigestResult(text=_quiet_day_message(), entities=[])
     research_articles = research_articles or []
     settings = get_llm_settings()
 
     if settings['provider'] == 'agent':
         prompt = _build_prompt(main_articles, research_articles, max_tokens=None)
         result = _agent_summarize(prompt, main_articles, research_articles)
-        return _structured_to_text(result)
+        entities = result.get('entities', []) if isinstance(result, dict) else []
+        return DigestResult(text=_structured_to_text(result), entities=entities)
 
     context_limit = _require_supported_context_window(settings['model'], settings.get('context_limit'))
-    # Reserve tokens for response generation + prompt overhead
     max_prompt_tokens = max(0, context_limit - settings['max_tokens'] - _SYSTEM_OVERHEAD_TOKENS)
     prompt = _build_prompt(main_articles, research_articles, max_tokens=max_prompt_tokens)
     logger.info(
@@ -600,21 +617,24 @@ def summarize(main_articles: list[dict], research_articles: list[dict] | None = 
     else:
         raise ValueError(f"Unsupported LLM provider '{settings['provider']}'")
 
-    # Parse structured JSON output
     try:
         parsed = _extract_json(raw)
         validated = _validate_digest(parsed)
         logger.info('Structured digest parsed successfully (%d highlights, %d research signals)',
                     len(validated.get('highlights', [])),
                     len(validated.get('research_builder_signals', [])))
-        # Save structured JSON alongside text for archive
-        return _structured_to_text(validated)
+        entities = validated.get('entities', [])
+        return DigestResult(text=_structured_to_text(validated), entities=entities)
     except (json.JSONDecodeError, ValueError) as exc:
         logger.warning('Structured parse failed (%s), falling back to raw text', exc)
-        # Fallback: return raw text for backward-compatible section parsing
         if not raw:
             raise RuntimeError('LLM provider returned empty response')
-        return raw
+        return DigestResult(text=raw, entities=[])
+
+
+def summarize(main_articles: list[dict], research_articles: list[dict] | None = None) -> str:
+    """Backward-compatible wrapper that returns text only."""
+    return summarize_with_entities(main_articles, research_articles).text
 
 
 def _quiet_day_message() -> str:

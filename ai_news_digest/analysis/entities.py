@@ -52,8 +52,18 @@ def _extract_via_llm(text: str, settings: dict) -> list[dict]:
     return []
 
 
-def extract_and_record_entities(run_id: str, digest_text: str) -> list[dict]:
-    """Extract entities from digest text and record them in SQLite."""
+def extract_and_record_entities(run_id: str, digest_text: str, pre_extracted: list[dict] | None = None) -> list[dict]:
+    """Extract entities from digest text and record them in SQLite.
+
+    When running in agent-native mode, the agent can pass pre-extracted entities
+    directly (from the structured digest JSON) to avoid an extra LLM call.
+    """
+    if pre_extracted is not None:
+        entities = [e for e in pre_extracted if isinstance(e, dict) and "name" in e and "type" in e]
+        if entities:
+            record_entities(run_id, entities)
+        return entities
+
     settings = get_llm_settings()
     entities = _extract_via_llm(digest_text, settings)
     if entities:
